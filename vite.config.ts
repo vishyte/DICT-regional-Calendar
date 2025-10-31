@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  base: "/DICT-regional-Calendar/", // <-- add this line
+  base: "/DICT-regional-Calendar/", // ✅ important for GitHub Pages
 });
 
 
