@@ -17,6 +17,11 @@ export type Activity = {
   status: "Scheduled" | "Completed" | "Postponed" | "Cancelled";
   changeReason?: string;
   changeDate?: string;
+  createdBy?: {
+    idNumber: string;
+    fullName: string;
+    email: string;
+  };
 };
 
 export type DayActivities = Record<string, Activity[]>;
@@ -91,10 +96,24 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addActivity = (activity: Activity) => {
+    // If the date is in the past and status is Scheduled, auto-mark as Completed
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const normalized: Activity = {
+      ...activity,
+      status:
+        activity.status === "Scheduled" && activity.date < todayKey
+          ? "Completed"
+          : activity.status,
+      changeDate:
+        activity.status === "Scheduled" && activity.date < todayKey
+          ? activity.changeDate ?? new Date().toISOString()
+          : activity.changeDate,
+    };
+
     setActivities(prev => {
       const next: DayActivities = { ...prev };
-      if (!next[activity.date]) next[activity.date] = [];
-      next[activity.date] = [...next[activity.date], activity];
+      if (!next[normalized.date]) next[normalized.date] = [];
+      next[normalized.date] = [...next[normalized.date], normalized];
       return next;
     });
   };

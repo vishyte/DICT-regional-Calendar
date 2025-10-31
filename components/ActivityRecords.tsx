@@ -36,6 +36,11 @@ interface Activity {
   attendanceFile?: string;
   attendanceFileName?: string;
   attendanceUploadDate?: string;
+  createdBy?: {
+    idNumber: string;
+    fullName: string;
+    email: string;
+  };
 }
 
 export function ActivityRecords() {
@@ -410,6 +415,7 @@ export function ActivityRecords() {
           originalDate: a.originalDate,
           changeReason: a.changeReason,
           changeDate: a.changeDate,
+          createdBy: a.createdBy,
         });
       }
     }
@@ -417,10 +423,9 @@ export function ActivityRecords() {
   }, [calendarActivities]);
 
   const combinedActivities = useMemo(() => {
-    // Combine mapped calendar items with existing mock list
-    // Place newest first (calendar items first)
-    return [...mappedFromCalendar, ...activities];
-  }, [mappedFromCalendar, activities]);
+    // Show only activities that exist in the calendar context
+    return mappedFromCalendar;
+  }, [mappedFromCalendar]);
 
   // Filter activities
   const filteredActivities = combinedActivities.filter(activity => {
@@ -434,6 +439,30 @@ export function ActivityRecords() {
     const matchesMonth = selectedMonth === "all" || activityMonth === selectedMonth;
     
     return matchesSearch && matchesProject && matchesProvince && matchesStatus && matchesMonth;
+  });
+
+  // Sort so today's events first, then upcoming (soonest first), then past (most recent first)
+  const sortedActivities = [...filteredActivities].sort((a, b) => {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const aDate = a.date;
+    const bDate = b.date;
+    const aCat = aDate === todayKey ? 0 : aDate > todayKey ? 1 : 2;
+    const bCat = bDate === todayKey ? 0 : bDate > todayKey ? 1 : 2;
+    if (aCat !== bCat) return aCat - bCat;
+
+    // Within the same category
+    if (aCat === 0) {
+      // Today: earliest start time first
+      return (a.timeStart || "").localeCompare(b.timeStart || "");
+    }
+    if (aCat === 1) {
+      // Upcoming: earliest date, then earliest time
+      if (aDate !== bDate) return aDate.localeCompare(bDate);
+      return (a.timeStart || "").localeCompare(b.timeStart || "");
+    }
+    // Past: most recent date first, then latest time
+    if (aDate !== bDate) return bDate.localeCompare(aDate);
+    return (b.timeStart || "").localeCompare(a.timeStart || "");
   });
 
   const getStatusColor = (status: string) => {
@@ -481,6 +510,16 @@ export function ActivityRecords() {
     });
 
     setActivities(updatedActivities);
+
+    // If this record originated from the calendar context (id starts with "cal-"),
+    // also update the shared calendar data so the calendar reflects the change.
+    if (editingActivity.id.startsWith("cal-")) {
+      const originalId = editingActivity.id.replace(/^cal-/, "");
+      try {
+        const { updateActivity } = useActivities();
+        updateActivity(originalId, (a) => ({ ...a, participants: participantCount }));
+      } catch {}
+    }
     setEditDialogOpen(false);
     setEditingActivity(null);
     setAttendanceFile(null);
@@ -519,7 +558,7 @@ export function ActivityRecords() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Total Records</p>
-                <p className="text-gray-900">{activities.length}</p>
+                <p className="text-gray-900">{combinedActivities.length}</p>
               </div>
               <FileText className="h-8 w-8 text-blue-500" />
             </div>
@@ -530,7 +569,7 @@ export function ActivityRecords() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Upcoming</p>
-                <p className="text-gray-900">{activities.filter(a => a.status === "Upcoming").length}</p>
+                <p className="text-gray-900">{combinedActivities.filter(a => a.status === "Upcoming").length}</p>
               </div>
               <Calendar className="h-8 w-8 text-orange-500" />
             </div>
@@ -541,7 +580,7 @@ export function ActivityRecords() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Ongoing</p>
-                <p className="text-gray-900">{activities.filter(a => a.status === "Ongoing").length}</p>
+                <p className="text-gray-900">{combinedActivities.filter(a => a.status === "Ongoing").length}</p>
               </div>
               <Clock className="h-8 w-8 text-blue-500" />
             </div>
@@ -552,7 +591,7 @@ export function ActivityRecords() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Completed</p>
-                <p className="text-gray-900">{activities.filter(a => a.status === "Completed").length}</p>
+                <p className="text-gray-900">{combinedActivities.filter(a => a.status === "Completed").length}</p>
               </div>
               <Calendar className="h-8 w-8 text-green-500" />
             </div>
@@ -563,7 +602,7 @@ export function ActivityRecords() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Postponed</p>
-                <p className="text-gray-900">{activities.filter(a => a.status === "Postponed").length}</p>
+                <p className="text-gray-900">{combinedActivities.filter(a => a.status === "Postponed").length}</p>
               </div>
               <AlertCircle className="h-8 w-8 text-yellow-500" />
             </div>
@@ -574,7 +613,7 @@ export function ActivityRecords() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm">Cancelled</p>
-                <p className="text-gray-900">{activities.filter(a => a.status === "Cancelled").length}</p>
+                <p className="text-gray-900">{combinedActivities.filter(a => a.status === "Cancelled").length}</p>
               </div>
               <AlertCircle className="h-8 w-8 text-red-500" />
             </div>
@@ -705,12 +744,13 @@ export function ActivityRecords() {
                   <TableHead>Date</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Participants</TableHead>
+                  <TableHead>Created By</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredActivities.map((activity) => (
+                {sortedActivities.map((activity) => (
                   <TableRow key={activity.id} className="hover:bg-gray-50">
                     <TableCell>
                       <div>
@@ -754,6 +794,16 @@ export function ActivityRecords() {
                         <Users className="h-4 w-4 text-gray-400" />
                         <span className="text-sm">{activity.participants}</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {activity.createdBy ? (
+                        <div className="text-xs text-gray-700">
+                          <div className="text-gray-900">{activity.createdBy.fullName}</div>
+                          <div className="text-gray-500">{activity.createdBy.idNumber}</div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-500">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge className={getStatusColor(activity.status)}>
@@ -811,6 +861,12 @@ export function ActivityRecords() {
                                 <div>
                                   <p className="text-sm text-gray-600">Project/Program</p>
                                   <p className="text-gray-900">{activity.project}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm text-gray-600">Created By</p>
+                                  <p className="text-gray-900">
+                                    {activity.createdBy ? `${activity.createdBy.fullName} (${activity.createdBy.idNumber})` : "—"}
+                                  </p>
                                 </div>
                                 <div>
                                   <p className="text-sm text-gray-600">Date</p>

@@ -82,7 +82,7 @@ export function LoginPage() {
       {/* Watermark/logo background */}
       <div className="absolute inset-0 flex items-center justify-center">
         <img 
-          src="/assets/DICT-Logo-Final-2-300x153.png"
+          src={`${import.meta.env.BASE_URL}assets/DICT-Logo-Final-2-300x153.png`}
           alt=""
           aria-hidden="true"
           role="presentation"

@@ -4,7 +4,7 @@ const LOGO_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/s
 export function DICTLogo({ className = "h-16 w-16" }: { className?: string }) {
   return (
     <img
-      src={"/assets/DICT-Logo-Final-2-300x153.png"}
+      src={`${import.meta.env.BASE_URL}assets/DICT-Logo-Final-2-300x153.png`}
       alt="DICT Logo"
       className={className}
       onError={e => {

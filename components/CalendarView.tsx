@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useActivities, type Activity as CtxActivity, type DayActivities } from "./ActivitiesContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
@@ -11,9 +11,10 @@ import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Alert, AlertDescription } from "./ui/alert";
 import { ChevronLeft, ChevronRight, Calendar, CalendarPlus, MapPin, FileText, Clock, Users, Edit, Eye, UserCheck, AlertCircle, CheckCircle } from "lucide-react";
+import { toast } from "sonner";
 
 interface CalendarViewProps {
-  onNavigateToActivity: () => void;
+  onNavigateToActivity: (dateKey?: string) => void;
   onNavigateToProvinces: () => void;
   onNavigateToRecords: () => void;
 }
@@ -32,6 +33,28 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   const [changeStatus, setChangeStatus] = useState("");
   const [changeReason, setChangeReason] = useState("");
   // activities come from context now
+
+  // Live clock
+  const [now, setNow] = useState<Date>(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTimeDisplay = (t?: string) => {
+    if (!t) return "";
+    // If already has AM/PM, return as-is
+    if (/am|pm|AM|PM/.test(t)) return t.replace(/\s+/g, "");
+    // Expect HH:MM (24h)
+    const m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return t;
+    let h = parseInt(m[1], 10);
+    const min = m[2];
+    const suffix = h >= 12 ? "pm" : "am";
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${min}${suffix}`;
+  };
 
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
@@ -55,6 +78,12 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
+  };
+
+  const isPastDate = (date: Date) => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    return date < todayStart;
   };
 
   const previousMonth = () => {
@@ -140,8 +169,11 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     days.push(
       <div
         key={day}
-        onClick={() => setSelectedDate(date)}
-        className={`p-2 min-h-[100px] border border-gray-200 cursor-pointer transition-all hover:bg-blue-50 ${
+        onClick={() => {
+          // Allow selecting past dates to view past activities
+          setSelectedDate(date);
+        }}
+        className={`p-3 min-h-[140px] border border-gray-200 cursor-pointer transition-all hover:bg-blue-50 ${
           isToday ? "bg-blue-100 border-blue-400" : "bg-white"
         } ${isSelected ? "ring-2 ring-blue-500" : ""}`}
       >
@@ -191,6 +223,54 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
 
   return (
     <div className="space-y-6">
+      {/* Today Bar: Time, Date, and Today's Activities */}
+      <Card className="border-0 shadow-md">
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Clock className="h-6 w-6 text-blue-600" />
+              <div>
+                <div className="text-gray-900 text-lg font-medium">{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</div>
+                <div className="text-gray-600 text-sm">{now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
+              </div>
+            </div>
+            {/* Today's Activities inline list: time — title */}
+            {(() => {
+              const todayKey = new Date().toISOString().slice(0, 10);
+              const todays = activities[todayKey] || [];
+              if (todays.length === 0) return null;
+              return (
+                <div className="flex-1 overflow-x-auto">
+                  <div className="flex flex-col items-center">
+                    <div className="text-sm text-gray-800 mb-1 font-medium">Today's Activities:</div>
+                    <div className="text-base text-blue-800 whitespace-nowrap">
+                      {todays.map((a) => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          className="mr-3 inline-flex flex-col items-start rounded-md hover:bg-blue-50 hover:text-blue-900 px-2 py-1 transition-colors text-left align-top"
+                          onClick={() => {
+                            setSelectedActivity(a);
+                            setViewDialogOpen(true);
+                          }}
+                          title={`${a.name} — ${formatTimeDisplay(a.time)} to ${formatTimeDisplay(a.endTime)}`}
+                        >
+                          <span className="truncate max-w-[260px] font-semibold text-blue-900">{a.name}</span>
+                          <span className="opacity-80">
+                            {formatTimeDisplay(a.time)}
+                            <span className="opacity-60 mx-1">to</span>
+                            {formatTimeDisplay(a.endTime)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </CardContent>
+      </Card>
       {/* helper: status color classes */}
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -214,7 +294,15 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
         <Button
-          onClick={onNavigateToActivity}
+          onClick={() => {
+            if (selectedDate && isPastDate(selectedDate)) {
+              toast.error("Cannot create on a past date", {
+                description: "Select today or a future date to create an activity.",
+              });
+              return;
+            }
+            onNavigateToActivity(selectedDate ? formatDateKey(selectedDate) : undefined);
+          }}
           className="bg-blue-600 hover:bg-blue-700 gap-2"
         >
           <CalendarPlus className="h-4 w-4" />
@@ -282,8 +370,9 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
           </CardContent>
         </Card>
 
-        {/* Activity Details */}
-        <Card className="border-0 shadow-lg">
+        {/* Right Sidebar: Activity Details */}
+        <div className="space-y-6">
+          <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle className="text-blue-900">
               {selectedDate
@@ -325,6 +414,11 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                       <MapPin className="h-4 w-4" />
                       {activity.location}
                     </div>
+                    {activity.createdBy && (
+                      <div className="text-xs text-gray-600">
+                        Created by {activity.createdBy.fullName} ({activity.createdBy.idNumber})
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <Badge variant="secondary">{activity.sector}</Badge>
                       <Badge className="bg-blue-600">{activity.project}</Badge>
@@ -340,7 +434,15 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     <p>No activities scheduled for this date</p>
                     <Button
                       variant="link"
-                      onClick={onNavigateToActivity}
+                      onClick={() => {
+                        if (selectedDate && isPastDate(selectedDate)) {
+                          toast.error("Cannot create on a past date", {
+                            description: "Select today or a future date to create an activity.",
+                          });
+                          return;
+                        }
+                        onNavigateToActivity(selectedDate ? formatDateKey(selectedDate) : undefined)
+                      }}
                       className="mt-2 text-blue-600"
                     >
                       Create an activity
@@ -355,7 +457,8 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
               </div>
             )}
           </CardContent>
-        </Card>
+          </Card>
+        </div>
       </div>
 
       {/* Activity Details Dialog */}
@@ -457,6 +560,13 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                   </div>
 
                   <div className="space-y-2">
+                    <div className="flex items-start gap-2">
+                      <UserCheck className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <div>
+                        <div className="text-sm text-gray-600">Created By</div>
+                        <div className="text-gray-900">{selectedActivity.createdBy ? `${selectedActivity.createdBy.fullName} (${selectedActivity.createdBy.idNumber})` : "—"}</div>
+                      </div>
+                    </div>
                     <div className="flex items-start gap-2">
                       <UserCheck className="h-5 w-5 text-blue-600 mt-0.5" />
                       <div>

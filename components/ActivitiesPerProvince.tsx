@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -6,6 +6,7 @@ import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Search, MapPin, Calendar, Users, Briefcase, Filter } from "lucide-react";
 import { Button } from "./ui/button";
+import { useActivities } from "./ActivitiesContext";
 
 interface Activity {
   id: string;
@@ -25,6 +26,7 @@ interface Activity {
 }
 
 export function ActivitiesPerProvince() {
+  const { activities: calendarActivities } = useActivities();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProvince, setSelectedProvince] = useState<string>("all");
   const [selectedProject, setSelectedProject] = useState<string>("all");
@@ -38,137 +40,30 @@ export function ActivitiesPerProvince() {
     "Davao Oriental"
   ];
 
-  // Mock data for activities
-  const activities: Activity[] = [
-    {
-      id: "1",
-      name: "Free Wi-Fi Installation Training",
-      project: "Free Wi-Fi for All",
-      date: "2025-11-15",
-      timeStart: "09:00",
-      timeEnd: "17:00",
-      targetSector: ["LGU", "Teachers"],
-      province: "Davao Del Norte",
-      district: "1st District",
-      barangay: "Poblacion",
-      partnerInstitution: "City Government of Davao",
-      resourcePerson: "ICT Division",
-      mode: "On-site",
-      status: "Upcoming"
-    },
-    {
-      id: "2",
-      name: "Cybersecurity Awareness Seminar",
-      project: "Cybersecurity",
-      date: "2025-10-25",
-      timeStart: "13:00",
-      timeEnd: "16:00",
-      targetSector: ["Teachers", "Students"],
-      province: "Davao Del Norte",
-      district: "2nd District",
-      barangay: "New Visayas",
-      partnerInstitution: "DepEd Division Office",
-      resourcePerson: "Technical Operations Division",
-      mode: "Hybrid",
-      status: "Completed"
-    },
-    {
-      id: "3",
-      name: "eGOV Implementation Workshop",
-      project: "eGOV",
-      date: "2025-10-22",
-      timeStart: "08:00",
-      timeEnd: "17:00",
-      targetSector: ["NGA", "LGU"],
-      province: "Davao Del Sur",
-      district: "1st District",
-      barangay: "Rizal",
-      partnerInstitution: "Provincial Government",
-      resourcePerson: "RD's Office",
-      mode: "On-site",
-      status: "Completed"
-    },
-    {
-      id: "4",
-      name: "ILCDB Data Management Training",
-      project: "ILCDB",
-      date: "2025-11-20",
-      timeStart: "09:00",
-      timeEnd: "16:00",
-      targetSector: ["LGU"],
-      province: "Davao De Oro",
-      district: "1st District",
-      barangay: "Poblacion",
-      partnerInstitution: "Provincial ICT Office",
-      resourcePerson: "ILCDB Team",
-      mode: "Online",
-      status: "Upcoming"
-    },
-    {
-      id: "5",
-      name: "Digital Literacy Program for Senior Citizens",
-      project: "ILCDB SPARK",
-      date: "2025-11-05",
-      timeStart: "14:00",
-      timeEnd: "16:00",
-      targetSector: ["Senior Citizen"],
-      province: "Davao Oriental",
-      district: "2nd District",
-      barangay: "San Isidro",
-      partnerInstitution: "Municipal Social Welfare",
-      resourcePerson: "Community Relations",
-      mode: "On-site",
-      status: "Upcoming"
-    },
-    {
-      id: "6",
-      name: "Tech Training for Indigenous People",
-      project: "ILCDB SPARK",
-      date: "2025-11-10",
-      timeStart: "09:00",
-      timeEnd: "15:00",
-      targetSector: ["Indigenous People"],
-      province: "Davao Occidental",
-      district: "1st District",
-      barangay: "Kiblat",
-      partnerInstitution: "NCIP Regional Office",
-      resourcePerson: "Outreach Team",
-      mode: "On-site",
-      status: "Upcoming"
-    },
-    {
-      id: "7",
-      name: "PNPKI System Integration Workshop",
-      project: "PNPKI",
-      date: "2025-10-28",
-      timeStart: "10:00",
-      timeEnd: "15:00",
-      targetSector: ["NGA"],
-      province: "Davao Del Sur",
-      district: "2nd District",
-      barangay: "Matina",
-      partnerInstitution: "Regional Government Center",
-      resourcePerson: "Security Team",
-      mode: "Hybrid",
-      status: "Ongoing"
-    },
-    {
-      id: "8",
-      name: "Women in Tech Summit",
-      project: "Provincial Activity",
-      date: "2025-11-25",
-      timeStart: "08:00",
-      timeEnd: "17:00",
-      targetSector: ["Women", "Students"],
-      province: "Davao Del Norte",
-      district: "1st District",
-      barangay: "Sto. Tomas",
-      partnerInstitution: "Women's Federation",
-      resourcePerson: "Gender and Development Unit",
-      mode: "On-site",
-      status: "Upcoming"
-    },
-  ];
+  const activities: Activity[] = useMemo(() => {
+    const out: Activity[] = [];
+    for (const [, items] of Object.entries(calendarActivities)) {
+      for (const a of items) {
+        out.push({
+          id: a.id,
+          name: a.name,
+          project: a.project,
+          date: a.date,
+          timeStart: a.time,
+          timeEnd: a.endTime,
+          targetSector: [a.sector].filter(Boolean),
+          province: a.location,
+          district: "",
+          barangay: a.venue,
+          partnerInstitution: "",
+          resourcePerson: a.facilitator || "",
+          mode: "On-site",
+          status: a.status === "Scheduled" ? "Upcoming" : (a.status as any),
+        });
+      }
+    }
+    return out;
+  }, [calendarActivities]);
 
   // Filter activities
   const filteredActivities = activities.filter(activity => {

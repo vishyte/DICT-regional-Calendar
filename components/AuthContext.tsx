@@ -23,7 +23,7 @@ const USERS_STORAGE_KEY = "dict_registered_users";
 const DEFAULT_USERS = {
   "DICT-25-001": {
     password: "user123",
-    fullName: "Juan Dela Cruz",
+    fullName: "Engr. Ma. Jessa Garsuta",
     email: "user@dict.gov.ph",
   },
   "DICT-25-002": {

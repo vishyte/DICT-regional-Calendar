@@ -15,6 +15,7 @@ import { ArrowLeft, LogOut, User } from "lucide-react";
 function AppContent() {
   const { user, logout } = useAuth();
   const [currentPage, setCurrentPage] = useState<"calendar" | "activity" | "provinces" | "records">("calendar");
+  const [prefillDate, setPrefillDate] = useState<string | undefined>(undefined);
 
   if (!user) {
     return <LoginPage />;
@@ -69,13 +70,17 @@ function AppContent() {
         
         {currentPage === "calendar" && (
           <CalendarView 
-            onNavigateToActivity={() => setCurrentPage("activity")}
+            onNavigateToActivity={(dateKey?: string) => {
+              setPrefillDate(dateKey);
+              setCurrentPage("activity");
+            }}
             onNavigateToProvinces={() => setCurrentPage("provinces")}
             onNavigateToRecords={() => setCurrentPage("records")}
           />
         )}
         {currentPage === "activity" && (
           <ActivityForm 
+            prefillDate={prefillDate}
             onSubmitted={() => setCurrentPage("calendar")} 
             onViewRecords={() => setCurrentPage("records")} 
           />

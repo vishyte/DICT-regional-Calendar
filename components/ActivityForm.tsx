@@ -11,13 +11,24 @@ import { Textarea } from "./ui/textarea";
 import { CalendarIcon, Clock, MapPin, Users, Briefcase } from "lucide-react";
 import { format } from "date-fns";
 import { useActivities } from "./ActivitiesContext";
+import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 
-export function ActivityForm({ onSubmitted, onViewRecords }: { onSubmitted?: () => void; onViewRecords?: () => void }) {
+export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSubmitted?: () => void; onViewRecords?: () => void; prefillDate?: string }) {
   const { addActivity } = useActivities();
-  const [startDate, setStartDate] = useState<Date>();
+  const { user } = useAuth();
+  const [startDate, setStartDate] = useState<Date>(() => {
+    if (prefillDate) {
+      const d = new Date(prefillDate);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return undefined as unknown as Date;
+  });
   const [endDate, setEndDate] = useState<Date>();
   const [selectedTargetSectors, setSelectedTargetSectors] = useState<string[]>([]);
+  const [timeStart, setTimeStart] = useState<string>("");
+  const [timeEnd, setTimeEnd] = useState<string>("");
+  const [computedDuration, setComputedDuration] = useState<string>("");
 
   const projects = [
     "IIDB",
@@ -58,6 +69,38 @@ export function ActivityForm({ onSubmitted, onViewRecords }: { onSubmitted?: () 
     "Davao Oriental"
   ];
 
+  // Compute duration when times change
+  const toMinutes = (t: string) => {
+    const m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  };
+  const formatDuration = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0 && m > 0) return `${h} hr ${m} min`;
+    if (h > 0) return `${h} hr${h > 1 ? 's' : ''}`;
+    return `${m} min`;
+  };
+  
+  if (computedDuration === undefined) {
+    // no-op to satisfy TS in some editors
+  }
+
+  // Update computedDuration reactively
+  if (timeStart || timeEnd) {
+    const s = toMinutes(timeStart ?? "");
+    const e = toMinutes(timeEnd ?? "");
+    if (s != null && e != null && e > s) {
+      const diff = e - s;
+      if (computedDuration !== formatDuration(diff)) {
+        setComputedDuration(formatDuration(diff));
+      }
+    } else if (computedDuration !== "") {
+      setComputedDuration("");
+    }
+  }
+
   const handleTargetSectorToggle = (sector: string) => {
     setSelectedTargetSectors(prev =>
       prev.includes(sector)
@@ -70,16 +113,40 @@ export function ActivityForm({ onSubmitted, onViewRecords }: { onSubmitted?: () 
     e.preventDefault();
     if (!startDate) return alert("Please select a start date");
 
+    // Disallow past dates
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    if (startDate < todayStart) {
+      toast.error("Start date cannot be in the past", {
+        description: "Please choose today or a future date.",
+      });
+      return;
+    }
+
     const form = e.currentTarget;
     const data = new FormData(form);
 
     const name = String(data.get("activityName") || "Untitled Activity");
     const project = String(data.get("project") || "");
-    const timeStart = String(data.get("timeStart") || "");
-    const timeEnd = String(data.get("timeEnd") || "");
     const location = String(data.get("province") || "");
     const venue = String(data.get("barangay") || "");
     const facilitator = String(data.get("resourcePerson") || "");
+    // Validate times
+    const parseTime = (t: string) => {
+      const m = t.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    };
+    const startMin = parseTime(timeStart);
+    const endMin = parseTime(timeEnd);
+    if (startMin == null || endMin == null) {
+      toast.error("Please provide valid start and end times");
+      return;
+    }
+    if (endMin <= startMin) {
+      toast.error("End time must be after start time");
+      return;
+    }
 
     const dateKey = format(startDate, "yyyy-MM-dd");
     const id = String(Date.now());
@@ -98,6 +165,13 @@ export function ActivityForm({ onSubmitted, onViewRecords }: { onSubmitted?: () 
       participants: undefined,
       facilitator,
       status: "Scheduled",
+      createdBy: user
+        ? {
+            idNumber: user.idNumber,
+            fullName: user.fullName,
+            email: user.email,
+          }
+        : undefined,
     });
 
     toast.success("Activity added", {
@@ -117,6 +191,19 @@ export function ActivityForm({ onSubmitted, onViewRecords }: { onSubmitted?: () 
       </CardHeader>
       <CardContent className="p-8">
         <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Creator/User banner */}
+          <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-md">
+            <Users className="h-5 w-5 text-blue-700" />
+            <div>
+              <p className="text-xs text-blue-800">Created by</p>
+              <p className="text-sm font-medium text-blue-900">
+                {user ? `${user.fullName} (${user.idNumber})` : "Guest"}
+              </p>
+              {user && (
+                <p className="text-xs text-blue-800">{user.email}</p>
+              )}
+            </div>
+          </div>
           
           {/* Schedule Section */}
           <div className="space-y-6">
@@ -146,6 +233,11 @@ export function ActivityForm({ onSubmitted, onViewRecords }: { onSubmitted?: () 
                       mode="single"
                       selected={startDate}
                       onSelect={setStartDate}
+                      disabled={(date) => {
+                        const t = new Date();
+                        t.setHours(0, 0, 0, 0);
+                        return date < t;
+                      }}
                       initialFocus
                     />
                   </PopoverContent>
@@ -172,6 +264,11 @@ export function ActivityForm({ onSubmitted, onViewRecords }: { onSubmitted?: () 
                       mode="single"
                       selected={endDate}
                       onSelect={setEndDate}
+                      disabled={(date) => {
+                        const t = new Date();
+                        t.setHours(0, 0, 0, 0);
+                        return date < t;
+                      }}
                       initialFocus
                     />
                   </PopoverContent>
@@ -191,6 +288,8 @@ export function ActivityForm({ onSubmitted, onViewRecords }: { onSubmitted?: () 
                     type="time"
                     className="pl-10"
                     required
+                    value={timeStart}
+                    onChange={(e) => setTimeStart(e.target.value)}
                   />
                 </div>
               </div>
@@ -208,25 +307,20 @@ export function ActivityForm({ onSubmitted, onViewRecords }: { onSubmitted?: () 
                     type="time"
                     className="pl-10"
                     required
+                    value={timeEnd}
+                    onChange={(e) => setTimeEnd(e.target.value)}
                   />
                 </div>
               </div>
 
-              {/* Duration */}
+              {/* Duration (auto-calculated) */}
               <div className="space-y-2">
-                <Label htmlFor="duration">
-                  Duration <span className="text-red-500">*</span>
-                </Label>
-                <Select name="duration" required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select duration" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1,2,3,4,5,6,7,8].map(h => (
-                      <SelectItem key={h} value={`${h} hours`}>{h} hour{h > 1 ? 's' : ''}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Duration (auto)</Label>
+                <Input
+                  readOnly
+                  value={computedDuration || "—"}
+                  className="bg-gray-50"
+                />
               </div>
             </div>
           </div>
