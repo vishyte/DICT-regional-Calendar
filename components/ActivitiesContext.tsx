@@ -22,6 +22,19 @@ export type Activity = {
     fullName: string;
     email: string;
   };
+  assignedPersonnel?: Array<{
+    idNumber: string;
+    fullName: string;
+    task: string;
+  }>;
+  priority?: "Normal" | "Urgent";
+  partnerInstitution?: string;
+  documents?: Array<{
+    id: string;
+    name: string;
+    url: string;
+    uploadDate: string;
+  }>;
 };
 
 export type DayActivities = Record<string, Activity[]>;

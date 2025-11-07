@@ -10,8 +10,9 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Alert, AlertDescription } from "./ui/alert";
-import { ChevronLeft, ChevronRight, Calendar, CalendarPlus, MapPin, FileText, Clock, Users, Edit, Eye, UserCheck, AlertCircle, CheckCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, CalendarPlus, MapPin, FileText, Clock, Users, Edit, Eye, UserCheck, AlertCircle, CheckCircle, X, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { formatTimeDisplay } from "./utils/timeFormat";
 
 interface CalendarViewProps {
   onNavigateToActivity: (dateKey?: string) => void;
@@ -32,6 +33,13 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   const [newDate, setNewDate] = useState("");
   const [changeStatus, setChangeStatus] = useState("");
   const [changeReason, setChangeReason] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editVenue, setEditVenue] = useState("");
+  const [editPartnerInstitution, setEditPartnerInstitution] = useState("");
+  const [editFinalPax, setEditFinalPax] = useState<string>("");
+  const [editAssignedPersonnel, setEditAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task: string }>>([]);
+  const [editDocuments, setEditDocuments] = useState<Array<{ id: string; name: string; url: string; uploadDate: string }>>([]);
   // activities come from context now
 
   // Live clock
@@ -41,20 +49,6 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     return () => clearInterval(timer);
   }, []);
 
-  const formatTimeDisplay = (t?: string) => {
-    if (!t) return "";
-    // If already has AM/PM, return as-is
-    if (/am|pm|AM|PM/.test(t)) return t.replace(/\s+/g, "");
-    // Expect HH:MM (24h)
-    const m = t.match(/^(\d{1,2}):(\d{2})$/);
-    if (!m) return t;
-    let h = parseInt(m[1], 10);
-    const min = m[2];
-    const suffix = h >= 12 ? "pm" : "am";
-    h = h % 12;
-    if (h === 0) h = 12;
-    return `${h}:${min}${suffix}`;
-  };
 
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
@@ -101,8 +95,42 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     setNewDate(activity.date);
     setChangeStatus("");
     setChangeReason("");
+    setEditTitle(activity.name || "");
+    setEditDescription(activity.description || "");
+    setEditVenue(activity.venue || "");
+    setEditPartnerInstitution(activity.partnerInstitution || "");
+    setEditFinalPax(activity.participants?.toString() || "");
+    setEditAssignedPersonnel(activity.assignedPersonnel || []);
+    setEditDocuments(activity.documents || []);
     setViewDialogOpen(false);
     setEditDialogOpen(true);
+  };
+
+  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach(file => {
+      const fileId = String(Date.now() + Math.random());
+      const fileUrl = URL.createObjectURL(file);
+      setEditDocuments(prev => [...prev, {
+        id: fileId,
+        name: file.name,
+        url: fileUrl,
+        uploadDate: new Date().toISOString(),
+      }]);
+    });
+    toast.success("Document(s) uploaded");
+  };
+
+  const handleRemoveDocument = (docId: string) => {
+    setEditDocuments(prev => prev.filter(doc => doc.id !== docId));
+  };
+
+  const handleUpdatePersonnelTask = (idNumber: string, task: string) => {
+    setEditAssignedPersonnel(prev => prev.map(p => 
+      p.idNumber === idNumber ? { ...p, task } : p
+    ));
   };
 
   const handleSaveChanges = () => {
@@ -117,8 +145,17 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     const newDateKey = newDate;
     const dateChanged = newDate !== editingActivity.date;
 
-    // Create updated activity
-    const updatedActivity: Activity = { ...editingActivity };
+    // Create updated activity with all editable fields
+    const updatedActivity: Activity = { 
+      ...editingActivity,
+      name: editTitle,
+      description: editDescription,
+      venue: editVenue,
+      partnerInstitution: editPartnerInstitution,
+      participants: editFinalPax ? parseInt(editFinalPax, 10) : undefined,
+      assignedPersonnel: editAssignedPersonnel.length > 0 ? editAssignedPersonnel : undefined,
+      documents: editDocuments.length > 0 ? editDocuments : undefined,
+    };
     
     // If date changed
     if (dateChanged) {
@@ -135,6 +172,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
 
     // Persist changes via context
     updateActivity(editingActivity.id, () => updatedActivity);
+    toast.success("Activity updated successfully");
     setEditDialogOpen(false);
     setEditingActivity(null);
     setChangeReason("");
@@ -372,7 +410,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
 
         {/* Right Sidebar: Activity Details */}
         <div className="space-y-6">
-          <Card className="border-0 shadow-lg">
+        <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle className="text-blue-900">
               {selectedDate
@@ -408,7 +446,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Clock className="h-4 w-4" />
-                      {activity.time} - {activity.endTime}
+                      {formatTimeDisplay(activity.time)} - {formatTimeDisplay(activity.endTime)}
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <MapPin className="h-4 w-4" />
@@ -457,7 +495,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
               </div>
             )}
           </CardContent>
-          </Card>
+        </Card>
         </div>
       </div>
 
@@ -469,7 +507,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
               <DialogHeader>
                 <DialogTitle className="text-blue-900">{selectedActivity.name}</DialogTitle>
                 <DialogDescription>
-                  {selectedActivity.date} • {selectedActivity.time} - {selectedActivity.endTime}
+                  {selectedActivity.date} • {formatTimeDisplay(selectedActivity.time)} - {formatTimeDisplay(selectedActivity.endTime)}
                 </DialogDescription>
               </DialogHeader>
 
@@ -536,7 +574,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                       <div>
                         <div className="text-sm text-gray-600">Time</div>
                         <div className="text-gray-900">
-                          {selectedActivity.time} - {selectedActivity.endTime}
+                          {formatTimeDisplay(selectedActivity.time)} - {formatTimeDisplay(selectedActivity.endTime)}
                         </div>
                       </div>
                     </div>
@@ -622,41 +660,171 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
 
       {/* Edit Activity Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Activity</DialogTitle>
             <DialogDescription>
-              Update activity date or change status
+              Update activity details. Date and time cannot be edited directly.
             </DialogDescription>
           </DialogHeader>
           
           {editingActivity && (
-            <div className="space-y-4 py-4">
-              <div>
-                <p className="text-sm text-gray-600 mb-2">Activity Name</p>
-                <p className="text-gray-900">{editingActivity.name}</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="new-date">Change Date</Label>
-                <Input
-                  id="new-date"
-                  type="date"
-                  value={newDate}
-                  onChange={(e) => setNewDate(e.target.value)}
-                />
-                {newDate !== editingActivity.date && (
-                  <p className="text-sm text-blue-600">
-                    Date will be changed from {new Date(editingActivity.date).toLocaleDateString()} to {new Date(newDate).toLocaleDateString()}
+            <div className="space-y-6 py-4">
+              {/* Date/Time (Read-only) */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <Label className="text-gray-600">Date</Label>
+                  <p className="text-gray-900 font-medium">
+                    {new Date(editingActivity.date).toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric"
+                    })}
                   </p>
-                )}
+                </div>
+                <div>
+                  <Label className="text-gray-600">Time</Label>
+                  <p className="text-gray-900 font-medium">
+                    {formatTimeDisplay(editingActivity.time)} - {formatTimeDisplay(editingActivity.endTime)}
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 col-span-2">Date and time cannot be edited directly</p>
               </div>
 
+              {/* Title */}
               <div className="space-y-2">
-                <Label htmlFor="change-status">Change Status</Label>
+                <Label htmlFor="edit-title">Title *</Label>
+                <Input
+                  id="edit-title"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Enter activity title"
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Enter activity description"
+                  rows={4}
+                />
+              </div>
+
+              {/* Venue */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-venue">Venue</Label>
+                <Input
+                  id="edit-venue"
+                  value={editVenue}
+                  onChange={(e) => setEditVenue(e.target.value)}
+                  placeholder="Enter venue"
+                />
+              </div>
+
+              {/* Partner Institution */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-partner">Partner Institution</Label>
+                <Input
+                  id="edit-partner"
+                  value={editPartnerInstitution}
+                  onChange={(e) => setEditPartnerInstitution(e.target.value)}
+                  placeholder="Enter partner institution"
+                />
+              </div>
+
+              {/* Final PAX */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-pax">Final PAX (Participants)</Label>
+                <Input
+                  id="edit-pax"
+                  type="number"
+                  min="0"
+                  value={editFinalPax}
+                  onChange={(e) => setEditFinalPax(e.target.value)}
+                  placeholder="Enter number of participants"
+                />
+              </div>
+
+              {/* Assigned Personnel Tasks */}
+              {editAssignedPersonnel.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Assigned Personnel Tasks</Label>
+                  <div className="space-y-2">
+                    {editAssignedPersonnel.map((person) => (
+                      <div key={person.idNumber} className="p-3 border border-gray-200 rounded-md bg-gray-50">
+                        <div className="mb-2">
+                          <p className="text-sm font-medium text-gray-900">{person.fullName}</p>
+                          <p className="text-xs text-gray-500">{person.idNumber}</p>
+                        </div>
+                        <Input
+                          placeholder="Enter task/role for this personnel"
+                          value={person.task}
+                          onChange={(e) => handleUpdatePersonnelTask(person.idNumber, e.target.value)}
+                          className="text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Documents */}
+              <div className="space-y-2">
+                <Label>Documents</Label>
+                <div className="space-y-2">
+                  {editDocuments.length > 0 && (
+                    <div className="space-y-2 mb-2">
+                      {editDocuments.map((doc) => (
+                        <div key={doc.id} className="flex items-center justify-between p-2 border border-gray-200 rounded-md bg-gray-50">
+                          <div className="flex items-center gap-2 flex-1">
+                            <FileText className="h-4 w-4 text-gray-400" />
+                            <a href={doc.url} download={doc.name} className="text-sm text-blue-600 hover:underline truncate">
+                              {doc.name}
+                            </a>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveDocument(doc.id)}
+                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="relative">
+                    <Input
+                      type="file"
+                      multiple
+                      onChange={handleDocumentUpload}
+                      className="hidden"
+                      id="document-upload"
+                    />
+                    <Label htmlFor="document-upload" className="cursor-pointer">
+                      <div className="flex items-center gap-2 p-3 border-2 border-dashed border-gray-300 rounded-md hover:border-blue-500 transition-colors">
+                        <Upload className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-600">Upload documents</span>
+                      </div>
+                    </Label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Change Section */}
+              <Separator />
+              <div className="space-y-2">
+                <Label htmlFor="change-status">Change Status (Optional)</Label>
                 <Select value={changeStatus} onValueChange={setChangeStatus}>
                   <SelectTrigger id="change-status">
-                    <SelectValue placeholder="Select status change" />
+                    <SelectValue placeholder="Keep current status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Scheduled">Mark as Scheduled</SelectItem>
@@ -683,24 +851,6 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     <p className="text-sm text-red-600">Reason is required</p>
                   )}
                 </div>
-              )}
-
-              {changeStatus === "Completed" && (
-                <Alert className="bg-blue-50 border-blue-200">
-                  <AlertCircle className="h-4 w-4 text-blue-600" />
-                  <AlertDescription className="text-blue-800 text-sm">
-                    This will mark the activity as completed.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {changeStatus === "Scheduled" && (
-                <Alert className="bg-green-50 border-green-200">
-                  <AlertCircle className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800 text-sm">
-                    This will mark the activity as scheduled.
-                  </AlertDescription>
-                </Alert>
               )}
             </div>
           )}

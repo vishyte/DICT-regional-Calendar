@@ -6,6 +6,7 @@ import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Search, MapPin, Calendar, Users, Briefcase, Filter } from "lucide-react";
 import { Button } from "./ui/button";
+import { formatTimeDisplay } from "./utils/timeFormat";
 import { useActivities } from "./ActivitiesContext";
 
 interface Activity {
@@ -57,7 +58,7 @@ export function ActivitiesPerProvince() {
           barangay: a.venue,
           partnerInstitution: "",
           resourcePerson: a.facilitator || "",
-          mode: "On-site",
+      mode: "On-site",
           status: a.status === "Scheduled" ? "Upcoming" : (a.status as any),
         });
       }
@@ -264,7 +265,7 @@ export function ActivitiesPerProvince() {
                                 year: "numeric"
                               })}
                               {" • "}
-                              {activity.timeStart} - {activity.timeEnd}
+                              {formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-sm">

@@ -33,7 +33,7 @@ const DEFAULT_USERS = {
   },
   "DICT-25-003": {
     password: "dict2025",
-    fullName: "Pedro Garcia",
+    fullName: "John Michael Dela Cruz",
     email: "staff.member@dict.gov.ph",
   },
 };

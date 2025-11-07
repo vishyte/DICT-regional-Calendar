@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Calendar } from "./ui/calendar";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -8,7 +8,7 @@ import { Checkbox } from "./ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Textarea } from "./ui/textarea";
-import { CalendarIcon, Clock, MapPin, Users, Briefcase } from "lucide-react";
+import { CalendarIcon, Clock, MapPin, Users, Briefcase, X, UserPlus, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useActivities } from "./ActivitiesContext";
 import { useAuth } from "./AuthContext";
@@ -29,6 +29,10 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
   const [timeStart, setTimeStart] = useState<string>("");
   const [timeEnd, setTimeEnd] = useState<string>("");
   const [computedDuration, setComputedDuration] = useState<string>("");
+  const [expectedParticipants, setExpectedParticipants] = useState<string>("");
+  const [assignedPersonnel, setAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task: string }>>([]);
+  const [priority, setPriority] = useState<"Normal" | "Urgent">("Normal");
+  const [selectedPersonnelId, setSelectedPersonnelId] = useState<string | undefined>(undefined);
 
   const projects = [
     "IIDB",
@@ -68,6 +72,69 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     "Davao Occidental",
     "Davao Oriental"
   ];
+
+  // Full personnel list
+  const allPersonnel = [
+    { idNumber: "DICT-25-001", fullName: "Engr. Ma. Jessa Garsuta", email: "user@dict.gov.ph" },
+    { idNumber: "DICT-25-002", fullName: "Maria Santos", email: "staff@dict.gov.ph" },
+    { idNumber: "DICT-25-003", fullName: "John Michael Dela Cruz", email: "staff.member@dict.gov.ph" },
+  ];
+
+  // Available personnel for assignment (excluding the current user)
+  const availablePersonnel = allPersonnel.filter(p => p.idNumber !== user?.idNumber);
+
+  // Memoize unassigned personnel to prevent unnecessary re-renders
+  const unassignedPersonnel = useMemo(() => {
+    return availablePersonnel.filter(p => !assignedPersonnel.find(ap => ap.idNumber === p.idNumber));
+  }, [availablePersonnel, assignedPersonnel]);
+
+  // Ensure selectedPersonnelId is valid
+  const validSelectedPersonnelId = useMemo(() => {
+    if (!selectedPersonnelId) return undefined;
+    const isValid = unassignedPersonnel.some(p => p.idNumber === selectedPersonnelId);
+    return isValid ? selectedPersonnelId : undefined;
+  }, [selectedPersonnelId, unassignedPersonnel]);
+
+  const handleAddPersonnel = (personnelId: string) => {
+    if (!personnelId || personnelId === "" || personnelId === "__disabled__") {
+      setSelectedPersonnelId(undefined);
+      return;
+    }
+    
+    try {
+      const person = allPersonnel.find(p => p.idNumber === personnelId);
+      const isAlreadyAssigned = assignedPersonnel.some(p => p.idNumber === personnelId);
+      
+      if (person && !isAlreadyAssigned) {
+        // Add personnel and reset select in the same update cycle
+        setAssignedPersonnel(prev => [...prev, { idNumber: person.idNumber, fullName: person.fullName, task: "" }]);
+        setSelectedPersonnelId(undefined);
+      } else {
+        setSelectedPersonnelId(undefined);
+      }
+    } catch (error) {
+      console.error("Error adding personnel:", error);
+      setSelectedPersonnelId(undefined);
+    }
+  };
+
+  const handleRemovePersonnel = (idNumber: string) => {
+    try {
+      setAssignedPersonnel(prev => prev.filter(p => p.idNumber !== idNumber));
+    } catch (error) {
+      console.error("Error removing personnel:", error);
+    }
+  };
+
+  const handleUpdateTask = (idNumber: string, task: string) => {
+    try {
+      setAssignedPersonnel(prev => prev.map(p => 
+        p.idNumber === idNumber ? { ...p, task } : p
+      ));
+    } catch (error) {
+      console.error("Error updating task:", error);
+    }
+  };
 
   // Compute duration when times change
   const toMinutes = (t: string) => {
@@ -131,6 +198,8 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     const location = String(data.get("province") || "");
     const venue = String(data.get("barangay") || "");
     const facilitator = String(data.get("resourcePerson") || "");
+    const partnerInstitution = String(data.get("partnerInstitution") || "");
+    const participantsCount = expectedParticipants ? parseInt(expectedParticipants, 10) : undefined;
     // Validate times
     const parseTime = (t: string) => {
       const m = t.match(/^(\d{1,2}):(\d{2})$/);
@@ -162,7 +231,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
       sector: selectedTargetSectors[0] || "LGU",
       project,
       description: String(data.get("description") || ""),
-      participants: undefined,
+      participants: participantsCount || undefined,
       facilitator,
       status: "Scheduled",
       createdBy: user
@@ -172,6 +241,9 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
             email: user.email,
           }
         : undefined,
+      assignedPersonnel: assignedPersonnel.length > 0 ? assignedPersonnel : undefined,
+      priority: priority,
+      partnerInstitution: partnerInstitution || undefined,
     });
 
     toast.success("Activity added", {
@@ -427,6 +499,26 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                   </div>
                 ))}
               </div>
+              
+              {/* Expected Participants */}
+              <div className="space-y-2">
+                <Label htmlFor="expectedParticipants">
+                  Expected Number of Participants
+                </Label>
+                <div className="relative">
+                  <Users className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="expectedParticipants"
+                    type="number"
+                    min="0"
+                    placeholder="Enter expected number of participants"
+                    value={expectedParticipants}
+                    onChange={(e) => setExpectedParticipants(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <p className="text-xs text-gray-500">Optional: Estimate how many participants will attend</p>
+              </div>
             </div>
           </div>
 
@@ -486,6 +578,102 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                   placeholder="Enter barangay"
                   required
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Assigned Personnel & Priority Section */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 pb-2 border-b-2 border-blue-200">
+              <Users className="h-5 w-5 text-blue-600" />
+              <h3 className="text-blue-900">Assignment & Priority</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Assigned Personnel */}
+              <div className="space-y-2">
+                <Label htmlFor="assignPersonnel">Assigned Personnel</Label>
+                <Select 
+                  value={validSelectedPersonnelId || ""} 
+                  onValueChange={handleAddPersonnel}
+                >
+                  <SelectTrigger id="assignPersonnel">
+                    <SelectValue placeholder="Select personnel to assign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unassignedPersonnel.length === 0 ? (
+                      <SelectItem value="__disabled__" disabled>All personnel assigned</SelectItem>
+                    ) : (
+                      unassignedPersonnel.map((person) => (
+                        <SelectItem key={person.idNumber} value={person.idNumber}>
+                          {person.fullName} ({person.idNumber})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                
+                {assignedPersonnel.length > 0 && (
+                  <div className="space-y-2 mt-3">
+                    {assignedPersonnel.map((person) => (
+                      <div key={person.idNumber} className="flex items-start gap-2 p-3 border border-gray-200 rounded-md bg-gray-50">
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{person.fullName}</p>
+                              <p className="text-xs text-gray-500">{person.idNumber}</p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemovePersonnel(person.idNumber)}
+                              className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <Input
+                            placeholder="Enter task/role for this personnel"
+                            value={person.task}
+                            onChange={(e) => handleUpdateTask(person.idNumber, e.target.value)}
+                            className="text-sm"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Priority */}
+              <div className="space-y-2">
+                <Label htmlFor="priority">Priority</Label>
+                <Select value={priority} onValueChange={(value: "Normal" | "Urgent") => setPriority(value)}>
+                  <SelectTrigger id="priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Normal">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        Normal
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="Urgent">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                        Urgent
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {priority === "Urgent" && (
+                  <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                    <p className="text-xs text-red-800">This activity is marked as urgent</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Search, Filter, Download, Eye, Calendar, Users, Clock, FileText, Edit, AlertCircle } from "lucide-react";
+import { formatTimeDisplay } from "./utils/timeFormat";
 import { Alert, AlertDescription } from "./ui/alert";
 
 interface Activity {
@@ -755,7 +756,7 @@ export function ActivityRecords() {
                     <TableCell>
                       <div>
                         <p className="text-gray-900">{activity.name}</p>
-                        <p className="text-sm text-gray-500">{activity.timeStart} - {activity.timeEnd}</p>
+                        <p className="text-sm text-gray-500">{formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}</p>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -880,7 +881,7 @@ export function ActivityRecords() {
                                 </div>
                                 <div>
                                   <p className="text-sm text-gray-600">Time</p>
-                                  <p className="text-gray-900">{activity.timeStart} - {activity.timeEnd}</p>
+                                  <p className="text-gray-900">{formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}</p>
                                 </div>
                                 <div>
                                   <p className="text-sm text-gray-600">Duration</p>
