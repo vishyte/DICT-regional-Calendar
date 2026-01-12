@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { useActivities } from "./ActivitiesContext";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
+import { sendActivityEmail } from "./utils/emailService";
 
 export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSubmitted?: () => void; onViewRecords?: () => void; prefillDate?: string }) {
   const { addActivity } = useActivities();
@@ -26,6 +27,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
   });
   const [endDate, setEndDate] = useState<Date>();
   const [selectedTargetSectors, setSelectedTargetSectors] = useState<string[]>([]);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [timeStart, setTimeStart] = useState<string>("");
   const [timeEnd, setTimeEnd] = useState<string>("");
   const [computedDuration, setComputedDuration] = useState<string>("");
@@ -33,6 +35,10 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
   const [assignedPersonnel, setAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task: string }>>([]);
   const [priority, setPriority] = useState<"Normal" | "Urgent">("Normal");
   const [selectedPersonnelId, setSelectedPersonnelId] = useState<string | undefined>(undefined);
+  const [selectedProvince, setSelectedProvince] = useState<string>("");
+  const [selectedCity, setSelectedCity] = useState<string>("");
+  const [activityNameBeforeFor, setActivityNameBeforeFor] = useState<string>("");
+  const [activityNameAfterFor, setActivityNameAfterFor] = useState<string>("");
 
   const projects = [
     "IIDB",
@@ -66,12 +72,77 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
   ];
 
   const provinces = [
+    "Davao City",
     "Davao De Oro",
     "Davao Del Sur",
     "Davao Del Norte",
     "Davao Occidental",
     "Davao Oriental"
   ];
+
+  // Cities by province
+  const citiesByProvince: Record<string, string[]> = {
+    "Davao De Oro": [
+      "Montevista",
+      "Laak",
+      "Mawab",
+      "Nabunturan",
+      "Maco",
+      "Maragusan",
+      "Pantukan",
+      "Compostela",
+      "New Bataan"
+    ],
+    "Davao Del Sur": [
+      "Digos City",
+      "Bansalan",
+      "Hagonoy",
+      "Kiblawan",
+      "Magsaysay",
+      "Malalag",
+      "Matanao",
+      "Padada",
+      "Santa Cruz",
+      "Sulop"
+    ],
+    "Davao Del Norte": [
+      "Tagum City",
+      "Panabo City",
+      "Island Garden City of Samal",
+      "Kapalong",
+      "Sto. Tomas",
+      "Carmen",
+      "Asuncion",
+      "Braulio E. Dujali",
+      "Talaingod",
+      "San Isidro"
+    ],
+    "Davao Occidental": [
+      "Don Marcelino",
+      "Jose Abad Santos",
+      "Malita",
+      "Santa Maria",
+      "Sarangani"
+    ],
+    "Davao Oriental": [
+      "Mati",
+      "Lupon",
+      "Banaybanay",
+      "San Isidro",
+      "Governor Generoso",
+      "Tarragona",
+      "Manay",
+      "Caraga",
+      "Baganga",
+      "Cateel",
+      "Boston"
+    ]
+  };
+
+  // Get cities for selected province (always include "Other" option)
+  const availableCities = selectedProvince 
+    ? [...(citiesByProvince[selectedProvince] || []), "Other"]
+    : [];
 
   // Full personnel list
   const allPersonnel = [
@@ -176,6 +247,14 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     );
   };
 
+  const handleProjectToggle = (project: string) => {
+    setSelectedProjects(prev =>
+      prev.includes(project)
+        ? prev.filter(p => p !== project)
+        : [...prev, project]
+    );
+  };
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!startDate) return alert("Please select a start date");
@@ -193,9 +272,30 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     const form = e.currentTarget;
     const data = new FormData(form);
 
-    const name = String(data.get("activityName") || "Untitled Activity");
-    const project = String(data.get("project") || "");
-    const location = String(data.get("province") || "");
+    // Activity name with "FOR" in the middle - format: "Part 1 FOR Part 2"
+    const beforeFor = activityNameBeforeFor.trim();
+    const afterFor = activityNameAfterFor.trim();
+    if (!beforeFor || !afterFor) {
+      toast.error("Activity Name required", {
+        description: "Please enter both parts of the activity name (Part 1 FOR Part 2)",
+      });
+      return;
+    }
+    const name = `${beforeFor} FOR ${afterFor}`;
+    // Validate that at least one project is selected
+    if (selectedProjects.length === 0) {
+      toast.error("Project/Program required", {
+        description: "Please select at least one project/program",
+      });
+      return;
+    }
+    const project = selectedProjects.join(", "); // Join multiple projects with comma
+    const province = String(data.get("province") || "");
+    const city = String(data.get("city") || "");
+    // If province is "Davao City", use it as location without city
+    const location = province === "Davao City" 
+      ? province 
+      : `${province}${city ? `, ${city}` : ''}`.trim();
     const venue = String(data.get("barangay") || "");
     const facilitator = String(data.get("resourcePerson") || "");
     const partnerInstitution = String(data.get("partnerInstitution") || "");
@@ -244,6 +344,49 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
       assignedPersonnel: assignedPersonnel.length > 0 ? assignedPersonnel : undefined,
       priority: priority,
       partnerInstitution: partnerInstitution || undefined,
+    });
+
+    // Send email notification (non-blocking - don't wait for it)
+    const recipientEmail = "vishy.te@dict.gov.ph"; // Test email provided by user
+    sendActivityEmail(recipientEmail, {
+      name,
+      date: dateKey,
+      time: timeStart,
+      endTime: timeEnd,
+      location,
+      venue,
+      project,
+      description: String(data.get("description") || ""),
+      participants: participantsCount || undefined,
+      facilitator,
+      createdBy: user ? `${user.fullName} (${user.idNumber})` : undefined,
+      sector: selectedTargetSectors[0] || "LGU",
+      partnerInstitution: partnerInstitution || undefined,
+    }).then((result) => {
+      if (result.success) {
+        toast.success("Email notification sent", {
+          description: `Activity notification sent to ${recipientEmail}`,
+        });
+      } else {
+        // Show info message but don't block activity creation
+        console.info("Email notification:", result.error || result.message);
+        // Show toast notification about email setup
+        if (result.error && result.error.includes('not configured')) {
+          toast.warning("Email not configured", {
+            description: "Email service not set up. Activity created successfully. See QUICK_EMAIL_SETUP.md for setup instructions (5 minutes).",
+            duration: 6000,
+          });
+        } else if (result.error) {
+          toast.error("Email failed", {
+            description: result.error,
+            duration: 5000,
+          });
+        }
+      }
+    }).catch((error) => {
+      // Silently log error - don't show toast to avoid interrupting user
+      console.error("Error sending email:", error);
+      // Activity creation should still succeed even if email fails
     });
 
     toast.success("Activity added", {
@@ -406,36 +549,74 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Project/Program */}
-              <div className="space-y-2">
-                <Label htmlFor="project">
+              <div className="space-y-2 md:col-span-2">
+                <Label>
                   Project/Program <span className="text-red-500">*</span>
                 </Label>
-                <Select required name="project">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select project/program" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project} value={project}>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                  {projects.map((project) => (
+                    <div key={project} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`project-${project}`}
+                        checked={selectedProjects.includes(project)}
+                        onCheckedChange={() => handleProjectToggle(project)}
+                        required={selectedProjects.length === 0}
+                      />
+                      <label
+                        htmlFor={`project-${project}`}
+                        className="text-sm cursor-pointer select-none"
+                      >
                         {project}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                {selectedProjects.length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">Please select at least one project/program</p>
+                )}
+                <input 
+                  type="hidden" 
+                  name="project" 
+                  value={selectedProjects.join(", ")} 
+                  required={selectedProjects.length === 0}
+                />
               </div>
 
               {/* Activity Name */}
               <div className="space-y-2">
-                <Label htmlFor="activityName">
+                <Label>
                   Activity Name <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  id="activityName"
-                  name="activityName"
-                  type="text"
-                  placeholder="Enter activity name"
-                  required
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="activityNameBefore"
+                    name="activityNameBefore"
+                    type="text"
+                    placeholder="e.g., Cybersecurity Awareness"
+                    value={activityNameBeforeFor}
+                    onChange={(e) => setActivityNameBeforeFor(e.target.value)}
+                    required
+                    className="flex-1"
+                  />
+                  <span className="px-3 py-2 bg-gray-100 text-gray-700 font-medium rounded-md border border-gray-300 whitespace-nowrap select-none">
+                    FOR
+                  </span>
+                  <Input
+                    id="activityNameAfter"
+                    name="activityNameAfter"
+                    type="text"
+                    placeholder="e.g., Rebel Returnees"
+                    value={activityNameAfterFor}
+                    onChange={(e) => setActivityNameAfterFor(e.target.value)}
+                    required
+                    className="flex-1"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  <span className="font-medium">Format:</span> [Part 1] FOR [Part 2] | 
+                  <span className="ml-1 font-medium">Example:</span> "Cybersecurity Awareness" FOR "Rebel Returnees" | 
+                  <span className="ml-1 text-red-500 font-medium">* Both parts are required</span>
+                </p>
               </div>
 
               {/* Mode of Implementation */}
@@ -529,15 +710,23 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
               <h3 className="text-blue-900">Location Information</h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Province/City */}
+            <div className={`grid grid-cols-1 md:grid-cols-2 ${selectedProvince === "Davao City" ? "lg:grid-cols-3" : "lg:grid-cols-4"} gap-6`}>
+              {/* Province */}
               <div className="space-y-2">
                 <Label htmlFor="province">
-                  Province/City <span className="text-red-500">*</span>
+                  Province <span className="text-red-500">*</span>
                 </Label>
-                <Select required name="province">
+                <Select 
+                  required 
+                  name="province"
+                  value={selectedProvince}
+                  onValueChange={(value) => {
+                    setSelectedProvince(value);
+                    setSelectedCity(""); // Reset city when province changes
+                  }}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select province/city" />
+                    <SelectValue placeholder="Select province" />
                   </SelectTrigger>
                   <SelectContent>
                     {provinces.map((province) => (
@@ -548,6 +737,38 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* City - Hide when "Davao City" is selected as province */}
+              {selectedProvince !== "Davao City" && (
+                <div className="space-y-2">
+                  <Label htmlFor="city">
+                    City <span className="text-red-500">*</span>
+                  </Label>
+                  <Select 
+                    required={selectedProvince !== "Davao City"}
+                    name="city"
+                    value={selectedCity || ""}
+                    onValueChange={setSelectedCity}
+                    disabled={!selectedProvince}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={!selectedProvince ? "Select province first" : "Select city"} />
+                    </SelectTrigger>
+                    {selectedProvince && availableCities.length > 0 && (
+                      <SelectContent>
+                        {availableCities.map((city) => (
+                          <SelectItem key={city} value={city}>
+                            {city}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    )}
+                  </Select>
+                  {!selectedProvince && (
+                    <p className="text-xs text-gray-500">Select a province first to see available cities</p>
+                  )}
+                </div>
+              )}
 
               {/* Congressional District */}
               <div className="space-y-2">

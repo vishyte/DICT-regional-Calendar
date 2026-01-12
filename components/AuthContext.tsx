@@ -11,7 +11,7 @@ interface AuthContextType {
   user: User | null;
   login: (username: string, password: string) => boolean;
   logout: () => void;
-  register: (fullName: string, idNumber: string, email: string, password: string, confirmPassword: string) => { success: boolean; message: string };
+  register: (username: string, email: string, password: string, confirmPassword: string) => { success: boolean; message: string };
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,21 +70,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false;
   };
 
-  const register = (fullName: string, idNumber: string, email: string, password: string, confirmPassword: string): { success: boolean; message: string } => {
+  const register = (username: string, email: string, password: string, confirmPassword: string): { success: boolean; message: string } => {
     // Validation
-    if (!fullName || !idNumber || !email || !password || !confirmPassword) {
+    if (!username || !email || !password || !confirmPassword) {
       return { success: false, message: "All fields are required" };
     }
 
-    // Validate full name (at least 2 words)
-    if (fullName.trim().split(/\s+/).length < 2) {
-      return { success: false, message: "Please enter your full name (first and last name)" };
-    }
-
-    // Validate ID number format (DICT-XX-XXX)
-    const idPattern = /^DICT-\d{2}-\d{3}$/;
-    if (!idPattern.test(idNumber)) {
-      return { success: false, message: "ID Number must be in format DICT-XX-XXX (e.g., DICT-25-024)" };
+    // Validate username (at least 3 characters)
+    if (username.trim().length < 3) {
+      return { success: false, message: "Username must be at least 3 characters" };
     }
 
     // Validate DICT email
@@ -103,18 +97,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const allUsers = getAllUsers();
     
-    // Check if ID number already exists
-    if (allUsers[idNumber as keyof typeof allUsers]) {
-      return { success: false, message: "ID Number already registered" };
+    // Check if username already exists
+    if (allUsers[username as keyof typeof allUsers]) {
+      return { success: false, message: "Username already registered" };
     }
 
     // Store new user
     const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
     const registeredUsers = storedUsers ? JSON.parse(storedUsers) : {};
     
-    registeredUsers[idNumber] = {
+    registeredUsers[username] = {
       password,
-      fullName,
+      username,
+      fullName: username, // Use username as fullName for display
       email,
     };
 

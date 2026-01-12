@@ -24,7 +24,10 @@ type Activity = CtxActivity;
 
 export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNavigateToRecords }: CalendarViewProps) {
   const { activities, updateActivity } = useActivities();
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 9, 1)); // October 2025
+  const [currentDate, setCurrentDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1); // Current month
+  });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
