@@ -26,6 +26,7 @@ interface Activity {
   province: string;
   district: string;
   barangay: string;
+  venueAddress?: string;
   partnerInstitution: string;
   resourcePerson: string;
   mode: string;
@@ -37,6 +38,10 @@ interface Activity {
   attendanceFile?: string;
   attendanceFileName?: string;
   attendanceUploadDate?: string;
+  todaFile?: string;
+  todaFileName?: string;
+  todaUploadDate?: string;
+  platform?: string;
   createdBy?: {
     idNumber: string;
     fullName: string;
@@ -56,6 +61,8 @@ export function ActivityRecords() {
   const [participantCount, setParticipantCount] = useState<number>(0);
   const [attendanceFile, setAttendanceFile] = useState<File | null>(null);
   const [attendanceFileName, setAttendanceFileName] = useState<string>("");
+  const [todaFile, setTodaFile] = useState<File | null>(null);
+  const [todaFileName, setTodaFileName] = useState<string>("");
 
   const projects = [
     "IIDB",
@@ -408,6 +415,7 @@ export function ActivityRecords() {
           province: a.location,
           district: "",
           barangay: a.venue,
+          venueAddress: a.venueAddress,
           partnerInstitution: "",
           resourcePerson: a.facilitator || "",
           mode: "On-site",
@@ -484,11 +492,24 @@ export function ActivityRecords() {
     setParticipantCount(activity.participants || 0);
     setAttendanceFile(null);
     setAttendanceFileName(activity.attendanceFileName || "");
+    setTodaFile(null);
+    setTodaFileName(activity.todaFileName || "");
     setEditDialogOpen(true);
   };
 
   const handleSaveChanges = () => {
     if (!editingActivity) return;
+
+    // Validation: If activity is already Completed, ensure both files are uploaded
+    if (editingActivity.status === "Completed") {
+      const hasAttendanceFile = attendanceFile || attendanceFileName;
+      const hasTodaFile = todaFile || todaFileName;
+      
+      if (!hasAttendanceFile || !hasTodaFile) {
+        alert("Cannot update a Completed activity. Both Attendance and TODA files must be uploaded first.");
+        return;
+      }
+    }
     
     const updatedActivities = activities.map(activity => {
       if (activity.id === editingActivity.id) {
@@ -504,6 +525,15 @@ export function ActivityRecords() {
           updates.attendanceFileName = attendanceFile.name;
           updates.attendanceUploadDate = new Date().toISOString();
         }
+
+        // If TODA file was uploaded
+        if (todaFile) {
+          // In a real app, this would upload to a server
+          // For now, we'll store the file name and simulate a URL
+          updates.todaFile = URL.createObjectURL(todaFile);
+          updates.todaFileName = todaFile.name;
+          updates.todaUploadDate = new Date().toISOString();
+        }
         
         return { ...activity, ...updates };
       }
@@ -515,15 +545,16 @@ export function ActivityRecords() {
     // If this record originated from the calendar context (id starts with "cal-"),
     // also update the shared calendar data so the calendar reflects the change.
     if (editingActivity.id.startsWith("cal-")) {
-      const originalId = editingActivity.id.replace(/^cal-/, "");
+      const originalId = parseInt(editingActivity.id.replace(/^cal-/, ""));
       try {
         const { updateActivity } = useActivities();
-        updateActivity(originalId, (a) => ({ ...a, participants: participantCount }));
+        updateActivity(originalId, { participants: participantCount });
       } catch {}
     }
     setEditDialogOpen(false);
     setEditingActivity(null);
     setAttendanceFile(null);
+    setTodaFile(null);
   };
 
   return (
@@ -958,6 +989,33 @@ export function ActivityRecords() {
                                   )}
                                 </div>
                               )}
+
+                              {activity.todaFileName && (
+                                <div>
+                                  <p className="text-sm text-gray-600">TODA File</p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                    <a
+                                      href={activity.todaFile}
+                                      download={activity.todaFileName}
+                                      className="text-blue-600 hover:underline text-sm"
+                                    >
+                                      {activity.todaFileName}
+                                    </a>
+                                  </div>
+                                  {activity.todaUploadDate && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      Uploaded: {new Date(activity.todaUploadDate).toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit"
+                                      })}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
                               
                               <div>
                                 <p className="text-sm text-gray-600">Status</p>
@@ -999,9 +1057,9 @@ export function ActivityRecords() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Update Activity Details</DialogTitle>
+            <DialogTitle>Submit Activity Files</DialogTitle>
             <DialogDescription>
-              Upload attendance and record participant count
+              Upload required attendance and TODA files, and update participant count
             </DialogDescription>
           </DialogHeader>
           
@@ -1038,6 +1096,13 @@ export function ActivityRecords() {
                 </p>
               </div>
 
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Current Status</p>
+                <Badge className={getStatusColor(editingActivity.status)}>
+                  {editingActivity.status}
+                </Badge>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="attendance-file">Upload Attendance (PDF)</Label>
                 <Input
@@ -1071,10 +1136,44 @@ export function ActivityRecords() {
                 )}
               </div>
 
-              <Alert className="bg-blue-50 border-blue-200">
-                <AlertCircle className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-blue-800 text-sm">
-                  This information will be reflected in the home page statistics for monthly and yearly participant counts.
+              <div className="space-y-2">
+                <Label htmlFor="toda-file">Upload TODA (PDF)</Label>
+                <Input
+                  id="toda-file"
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (file.type !== "application/pdf") {
+                        alert("Please upload a PDF file");
+                        e.target.value = "";
+                        return;
+                      }
+                      setTodaFile(file);
+                    }
+                  }}
+                  className="cursor-pointer"
+                />
+                {todaFileName && (
+                  <div className="flex items-center gap-2 text-sm text-green-600">
+                    <FileText className="h-4 w-4" />
+                    <span>Current file: {todaFileName}</span>
+                  </div>
+                )}
+                {todaFile && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600">
+                    <FileText className="h-4 w-4" />
+                    <span>New file: {todaFile.name}</span>
+                  </div>
+                )}
+              </div>
+
+              <Alert className="bg-amber-50 border-amber-200">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800 text-sm">
+                  <strong>Important:</strong> For completed activities, both Attendance and TODA files must be uploaded before making any updates.
+                  This information will be reflected in the home page statistics.
                 </AlertDescription>
               </Alert>
             </div>
@@ -1085,7 +1184,7 @@ export function ActivityRecords() {
               Cancel
             </Button>
             <Button onClick={handleSaveChanges}>
-              Save Changes
+              Submit
             </Button>
           </DialogFooter>
         </DialogContent>

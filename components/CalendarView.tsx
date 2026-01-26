@@ -42,7 +42,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   const [editPartnerInstitution, setEditPartnerInstitution] = useState("");
   const [editFinalPax, setEditFinalPax] = useState<string>("");
   const [editAssignedPersonnel, setEditAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task: string }>>([]);
-  const [editDocuments, setEditDocuments] = useState<Array<{ id: string; name: string; url: string; uploadDate: string }>>([]);
+  const [editDocuments, setEditDocuments] = useState<Array<{ id: number; name: string; url: string; uploadDate: string }>>([]);
   // activities come from context now
 
   // Live clock
@@ -114,7 +114,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     if (!files || files.length === 0) return;
 
     Array.from(files).forEach(file => {
-      const fileId = String(Date.now() + Math.random());
+      const fileId = Date.now() + Math.random();
       const fileUrl = URL.createObjectURL(file);
       setEditDocuments(prev => [...prev, {
         id: fileId,
@@ -126,7 +126,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     toast.success("Document(s) uploaded");
   };
 
-  const handleRemoveDocument = (docId: string) => {
+  const handleRemoveDocument = (docId: number) => {
     setEditDocuments(prev => prev.filter(doc => doc.id !== docId));
   };
 
@@ -136,7 +136,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     ));
   };
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
     if (!editingActivity) return;
     
     if ((changeStatus === "Postponed" || changeStatus === "Cancelled") && !changeReason.trim()) {
@@ -173,13 +173,16 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
       updatedActivity.changeDate = new Date().toISOString();
     }
 
-    // Persist changes via context
-    updateActivity(editingActivity.id, () => updatedActivity);
-    toast.success("Activity updated successfully");
-    setEditDialogOpen(false);
-    setEditingActivity(null);
-    setChangeReason("");
-    setChangeStatus("");
+    try {
+      await updateActivity(editingActivity.id, updatedActivity);
+      toast.success("Activity updated successfully");
+      setEditDialogOpen(false);
+      setEditingActivity(null);
+      setChangeReason("");
+      setChangeStatus("");
+    } catch (error) {
+      toast.error("Failed to update activity");
+    }
   };
 
   const today = new Date();
@@ -462,7 +465,11 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     )}
                     <div className="flex gap-2">
                       <Badge variant="secondary">{activity.sector}</Badge>
-                      <Badge className="bg-blue-600">{activity.project}</Badge>
+                      <Badge className="bg-blue-600 w-[90px] overflow-hidden whitespace-nowrap" title={activity.project}>
+                        <span className={`inline-block ${activity.project.length > 12 ? 'animate-marquee' : ''}`}>
+                          {activity.project}
+                        </span>
+                      </Badge>
                     </div>
                   </div>
                 ))}

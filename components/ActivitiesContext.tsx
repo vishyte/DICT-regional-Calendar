@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
+import { activitiesAPI } from "../utils/api";
+import { useAuth } from "./AuthContext";
 
 export type Activity = {
-  id: string;
+  id: number;
   name: string;
   date: string; // YYYY-MM-DD
   originalDate?: string;
@@ -9,6 +11,7 @@ export type Activity = {
   endTime: string;
   location: string;
   venue: string;
+  venueAddress?: string;
   sector: string;
   project: string;
   description?: string;
@@ -21,6 +24,7 @@ export type Activity = {
     idNumber: string;
     fullName: string;
     email: string;
+    project: string;
   };
   assignedPersonnel?: Array<{
     idNumber: string;
@@ -30,118 +34,106 @@ export type Activity = {
   priority?: "Normal" | "Urgent";
   partnerInstitution?: string;
   documents?: Array<{
-    id: string;
+    id: number;
     name: string;
     url: string;
     uploadDate: string;
   }>;
+  attendanceFile?: string;
+  attendanceFileName?: string;
+  attendanceUploadDate?: string;
+  todaFile?: string;
+  todaFileName?: string;
+  todaUploadDate?: string;
+  mode?: string;
+  platform?: string;
 };
 
 export type DayActivities = Record<string, Activity[]>;
 
 type ActivitiesContextType = {
   activities: DayActivities;
-  addActivity: (activity: Activity) => void;
-  updateActivity: (id: string, updater: (a: Activity) => Activity) => void;
+  loading: boolean;
+  addActivity: (activity: Omit<Activity, 'id' | 'createdBy'>) => Promise<void>;
+  updateActivity: (id: number, updates: Partial<Activity>) => Promise<void>;
+  deleteActivity: (id: number) => Promise<void>;
+  refreshActivities: () => Promise<void>;
 };
-
-const STORAGE_KEY = "dict_calendar_activities";
 
 const ActivitiesContext = createContext<ActivitiesContextType | undefined>(undefined);
 
-// Seed with a couple of example activities (matches calendar demo)
-const SEED: DayActivities = {
-  "2025-10-28": [
-    {
-      id: "1",
-      name: "Free Wi-Fi Installation Training",
-      date: "2025-10-28",
-      time: "9:00 AM",
-      endTime: "12:00 PM",
-      location: "Davao City",
-      venue: "DICT Regional Office Conference Hall",
-      sector: "LGU",
-      project: "IIDB Free Wi-Fi for All",
-      description:
-        "Comprehensive training on the installation and maintenance of free Wi-Fi infrastructure for local government units.",
-      participants: 45,
-      facilitator: "Engr. Juan Dela Cruz",
-      status: "Scheduled",
-    },
-  ],
-};
-
 export function ActivitiesProvider({ children }: { children: ReactNode }) {
-  const [activities, setActivities] = useState<DayActivities>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch {}
-    return SEED;
-  });
+  const [activities, setActivities] = useState<DayActivities>({});
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(activities));
-    } catch {}
-  }, [activities]);
+  const refreshActivities = async () => {
+    if (!user) return;
 
-  // Auto-mark past scheduled activities as Completed (based on date only)
-  useEffect(() => {
-    const todayKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    let changed = false;
-    const next: DayActivities = {};
-    for (const [dateKey, list] of Object.entries(activities)) {
-      next[dateKey] = list.map(item => {
-        if (item.status === "Scheduled" && dateKey < todayKey) {
-          changed = true;
-          return {
-            ...item,
-            status: "Completed",
-            changeDate: item.changeDate ?? new Date().toISOString(),
-          };
+    setLoading(true);
+    try {
+      const response = await activitiesAPI.getAll();
+      const activitiesList: Activity[] = response.data;
+
+      // Group by date
+      const grouped: DayActivities = {};
+      activitiesList.forEach(activity => {
+        if (!grouped[activity.date]) {
+          grouped[activity.date] = [];
         }
-        return item;
+        grouped[activity.date].push(activity);
       });
+
+      setActivities(grouped);
+    } catch (error) {
+      console.error('Failed to fetch activities:', error);
+    } finally {
+      setLoading(false);
     }
-    if (changed) setActivities(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const addActivity = (activity: Activity) => {
-    // If the date is in the past and status is Scheduled, auto-mark as Completed
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const normalized: Activity = {
-      ...activity,
-      status:
-        activity.status === "Scheduled" && activity.date < todayKey
-          ? "Completed"
-          : activity.status,
-      changeDate:
-        activity.status === "Scheduled" && activity.date < todayKey
-          ? activity.changeDate ?? new Date().toISOString()
-          : activity.changeDate,
-    };
-
-    setActivities(prev => {
-      const next: DayActivities = { ...prev };
-      if (!next[normalized.date]) next[normalized.date] = [];
-      next[normalized.date] = [...next[normalized.date], normalized];
-      return next;
-    });
   };
 
-  const updateActivity = (id: string, updater: (a: Activity) => Activity) => {
-    setActivities(prev => {
-      const next: DayActivities = {};
-      for (const [dateKey, items] of Object.entries(prev)) {
-        next[dateKey] = items.map(a => (a.id === id ? updater(a) : a));
-      }
-      return next;
-    });
+  useEffect(() => {
+    refreshActivities();
+  }, [user]);
+
+  const addActivity = async (activityData: Omit<Activity, 'id' | 'createdBy'>) => {
+    try {
+      await activitiesAPI.create(activityData);
+      await refreshActivities();
+    } catch (error) {
+      console.error('Failed to add activity:', error);
+      throw error;
+    }
   };
 
-  const value = useMemo(() => ({ activities, addActivity, updateActivity }), [activities]);
+  const updateActivity = async (id: number, updates: Partial<Activity>) => {
+    try {
+      await activitiesAPI.update(id, updates);
+      await refreshActivities();
+    } catch (error) {
+      console.error('Failed to update activity:', error);
+      throw error;
+    }
+  };
+
+  const deleteActivity = async (id: number) => {
+    try {
+      await activitiesAPI.delete(id);
+      await refreshActivities();
+    } catch (error) {
+      console.error('Failed to delete activity:', error);
+      throw error;
+    }
+  };
+
+  const value = useMemo(() => ({
+    activities,
+    loading,
+    addActivity,
+    updateActivity,
+    deleteActivity,
+    refreshActivities
+  }), [activities, loading]);
 
   return <ActivitiesContext.Provider value={value}>{children}</ActivitiesContext.Provider>;
 }

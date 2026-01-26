@@ -11,6 +11,7 @@ export interface ActivityEmailData {
   endTime: string;
   location: string;
   venue: string;
+  venueAddress?: string;
   project: string;
   description?: string;
   participants?: number;

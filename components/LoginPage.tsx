@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Alert, AlertDescription } from "./ui/alert";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Button } from "./ui/button";
-import { Alert, AlertDescription } from "./ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { User, Lock, AlertCircle, Eye, EyeOff, Mail, Shield } from "lucide-react";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
@@ -14,9 +15,13 @@ export function LoginPage() {
   const { login, register } = useAuth();
   const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [project, setProject] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
@@ -28,22 +33,24 @@ export function LoginPage() {
   const [enteredCode, setEnteredCode] = useState("");
   const [sendingCode, setSendingCode] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    setTimeout(() => {
-      const success = login(username, password);
-      if (!success) {
-        setError("Invalid credentials. Please try again.");
+    try {
+      const result = await login(username, password);
+      if (!result.success) {
+        setError(result.message || "Invalid credentials. Please try again.");
       } else {
         toast.success("Welcome back!", {
           description: "You have successfully logged in.",
         });
       }
-      setLoading(false);
-    }, 500);
+    } catch (error) {
+      setError("Login failed. Please try again.");
+    }
+    setLoading(false);
   };
 
   const handleSendVerificationCode = async (e: React.FormEvent) => {
@@ -51,8 +58,8 @@ export function LoginPage() {
     setError("");
     
     // Basic validation before sending code
-    if (!username || !email || !password || !confirmPassword) {
-      setError("All fields are required");
+    if (!username || !firstName || !lastName || !email || !password || !confirmPassword || !project) {
+      setError("All required fields are required");
       return;
     }
     
@@ -77,7 +84,7 @@ export function LoginPage() {
     
     // Store code temporarily (in sessionStorage for security)
     sessionStorage.setItem(`verification_code_${email}`, code);
-    sessionStorage.setItem(`verification_data_${email}`, JSON.stringify({ username, email, password }));
+    sessionStorage.setItem(`verification_data_${email}`, JSON.stringify({ username, firstName, middleName, lastName, email, password, project }));
     
     const result = await sendVerificationCodeEmail(email, code, username);
     
@@ -122,8 +129,8 @@ export function LoginPage() {
     const data = JSON.parse(storedData);
     setLoading(true);
     
-    setTimeout(() => {
-      const result = register(data.username, data.email, data.password, data.password);
+    setTimeout(async () => {
+      const result = await register(data.username, data.email, data.password, data.password, data.firstName, data.middleName, data.lastName, data.project);
       
       // Clean up session storage
       sessionStorage.removeItem(`verification_code_${email}`);
@@ -140,9 +147,13 @@ export function LoginPage() {
         setIsRegistering(false);
         setVerificationStep('form');
         setUsername("");
+        setFirstName("");
+        setMiddleName("");
+        setLastName("");
         setPassword("");
         setConfirmPassword("");
         setEmail("");
+        setProject("");
         setEnteredCode("");
         setVerificationCode("");
         setLoading(false);
@@ -161,9 +172,13 @@ export function LoginPage() {
     setIsRegistering(!isRegistering);
     setError("");
     setUsername("");
+    setFirstName("");
+    setMiddleName("");
+    setLastName("");
     setEmail("");
     setPassword("");
     setConfirmPassword("");
+    setProject("");
     setShowPassword(false);
     setShowConfirmPassword(false);
     setVerificationStep('form');
@@ -233,6 +248,45 @@ export function LoginPage() {
               </div>
 
               {isRegistering && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name <span className="text-red-500">*</span></Label>
+                      <Input
+                        id="firstName"
+                        type="text"
+                        placeholder="Enter first name"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="middleName">Middle Name</Label>
+                      <Input
+                        id="middleName"
+                        type="text"
+                        placeholder="Enter middle name (optional)"
+                        value={middleName}
+                        onChange={(e) => setMiddleName(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="lastName"
+                      type="text"
+                      placeholder="Enter last name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {isRegistering && (
                 <div className="space-y-2">
                   <Label htmlFor="email">DICT Email</Label>
                   <div className="relative">
@@ -247,6 +301,29 @@ export function LoginPage() {
                       required
                     />
                   </div>
+                </div>
+              )}
+
+              {isRegistering && (
+                <div className="space-y-2">
+                  <Label htmlFor="project">Project/Program <span className="text-red-500">*</span></Label>
+                  <Select value={project} onValueChange={setProject} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your project/program" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="IIDB">IIDB</SelectItem>
+                      <SelectItem value="ILCDB">ILCDB</SelectItem>
+                      <SelectItem value="Free Wi-Fi">Free Wi-Fi</SelectItem>
+                      <SelectItem value="NBP">NBP</SelectItem>
+                      <SelectItem value="NGP">NGP</SelectItem>
+                      <SelectItem value="eGOVSD">eGOVSD</SelectItem>
+                      <SelectItem value="IMB-DRRMD">IMB-DRRMD</SelectItem>
+                      <SelectItem value="NIPPSB">NIPPSB</SelectItem>
+                      <SelectItem value="PNPKI">PNPKI</SelectItem>
+                      <SelectItem value="MISS">MISS</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 

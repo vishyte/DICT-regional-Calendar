@@ -10,21 +10,52 @@ import { formatTimeDisplay } from "./utils/timeFormat";
 import { useActivities } from "./ActivitiesContext";
 
 interface Activity {
-  id: string;
+  id: number;
   name: string;
   project: string;
   date: string;
+  originalDate?: string;
+  time: string;
+  endTime: string;
   timeStart: string;
   timeEnd: string;
-  targetSector: string[];
+  location: string;
+  venue: string;
+  sector: string;
+  description?: string;
+  participants?: number;
+  facilitator?: string;
+  status: "Scheduled" | "Completed" | "Postponed" | "Cancelled" | "Upcoming" | "Ongoing";
+  priority?: "Normal" | "Urgent";
+  partnerInstitution?: string;
+  mode?: string;
+  platform?: string;
+  createdBy?: {
+    idNumber: string;
+    fullName: string;
+    email: string;
+    project: string;
+  };
+  assignedPersonnel?: Array<{
+    idNumber: string;
+    fullName: string;
+    task: string;
+  }>;
+  documents?: Array<{
+    id: number;
+    name: string;
+    url: string;
+    uploadDate: string;
+  }>;
   province: string;
   district: string;
   barangay: string;
-  partnerInstitution: string;
+  venueAddress?: string;
+  targetSector: string[];
   resourcePerson: string;
-  mode: string;
-  status: "Upcoming" | "Ongoing" | "Completed";
-}
+  changeReason?: string;
+  changeDate?: string;
+};
 
 export function ActivitiesPerProvince() {
   const { activities: calendarActivities } = useActivities();
@@ -32,14 +63,7 @@ export function ActivitiesPerProvince() {
   const [selectedProvince, setSelectedProvince] = useState<string>("all");
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
-
-  const provinces = [
-    "Davao De Oro",
-    "Davao Del Sur",
-    "Davao Del Norte",
-    "Davao Occidental",
-    "Davao Oriental"
-  ];
+  const [selectedPriority, setSelectedPriority] = useState<string>("all");
 
   const activities: Activity[] = useMemo(() => {
     const out: Activity[] = [];
@@ -50,32 +74,56 @@ export function ActivitiesPerProvince() {
           name: a.name,
           project: a.project,
           date: a.date,
+          originalDate: a.originalDate,
+          time: a.time,
+          endTime: a.endTime,
           timeStart: a.time,
           timeEnd: a.endTime,
+          location: a.location,
+          venue: a.venue,
+          sector: a.sector,
           targetSector: [a.sector].filter(Boolean),
           province: a.location,
           district: "",
           barangay: a.venue,
-          partnerInstitution: "",
+          venueAddress: a.venueAddress,
+          partnerInstitution: a.partnerInstitution,
           resourcePerson: a.facilitator || "",
-      mode: "On-site",
-          status: a.status === "Scheduled" ? "Upcoming" : (a.status as any),
+          mode: a.mode || "On-site",
+          status: a.status === "Scheduled" ? "Upcoming" : a.status,
+          priority: a.priority,
+          description: a.description,
+          participants: a.participants,
+          facilitator: a.facilitator,
+          changeReason: a.changeReason,
+          changeDate: a.changeDate,
+          createdBy: a.createdBy,
+          assignedPersonnel: a.assignedPersonnel,
+          documents: a.documents,
+          platform: a.platform,
         });
       }
     }
     return out;
   }, [calendarActivities]);
 
+  // Dynamically get all unique provinces from activities
+  const provinces = useMemo(() => {
+    const uniqueProvinces = new Set(activities.map(activity => activity.province));
+    return Array.from(uniqueProvinces).sort();
+  }, [activities]);
+
   // Filter activities
   const filteredActivities = activities.filter(activity => {
     const matchesSearch = activity.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          activity.barangay.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         activity.partnerInstitution.toLowerCase().includes(searchQuery.toLowerCase());
+                         (activity.partnerInstitution && activity.partnerInstitution.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesProvince = selectedProvince === "all" || activity.province === selectedProvince;
     const matchesProject = selectedProject === "all" || activity.project === selectedProject;
     const matchesStatus = selectedStatus === "all" || activity.status === selectedStatus;
+    const matchesPriority = selectedPriority === "all" || activity.priority === selectedPriority;
     
-    return matchesSearch && matchesProvince && matchesProject && matchesStatus;
+    return matchesSearch && matchesProvince && matchesProject && matchesStatus && matchesPriority;
   });
 
   // Group activities by province
@@ -130,7 +178,7 @@ export function ActivitiesPerProvince() {
             <Filter className="h-5 w-5 text-blue-600" />
             <h3 className="text-blue-900">Filters</h3>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="space-y-2">
               <label className="text-sm text-gray-600">Search</label>
               <div className="relative">
@@ -192,9 +240,23 @@ export function ActivitiesPerProvince() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-sm text-gray-600">Priority</label>
+              <Select value={selectedPriority} onValueChange={setSelectedPriority}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="Normal">Normal</SelectItem>
+                  <SelectItem value="Urgent">Urgent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {(searchQuery || selectedProvince !== "all" || selectedProject !== "all" || selectedStatus !== "all") && (
+          {(searchQuery || selectedProvince !== "all" || selectedProject !== "all" || selectedStatus !== "all" || selectedPriority !== "all") && (
             <div className="mt-4 flex items-center gap-2">
               <span className="text-sm text-gray-600">
                 Showing {filteredActivities.length} of {activities.length} activities
@@ -246,9 +308,16 @@ export function ActivitiesPerProvince() {
                         <CardHeader className="pb-3">
                           <div className="flex items-start justify-between gap-2">
                             <CardTitle className="text-gray-900">{activity.name}</CardTitle>
-                            <Badge className={getStatusColor(activity.status)}>
-                              {activity.status}
-                            </Badge>
+                            <div className="flex gap-2">
+                              <Badge className={getStatusColor(activity.status)}>
+                                {activity.status}
+                              </Badge>
+                              {activity.priority && (
+                                <Badge variant="outline" className={activity.priority === "Urgent" ? "border-red-500 text-red-700" : "border-blue-500 text-blue-700"}>
+                                  {activity.priority}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-3">
@@ -274,6 +343,14 @@ export function ActivitiesPerProvince() {
                               {activity.barangay}, {activity.district}
                             </span>
                           </div>
+                          {activity.venueAddress && (
+                            <div className="flex items-start gap-2 text-sm">
+                              <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
+                              <span className="text-gray-600">
+                                <span className="font-medium">Address:</span> {activity.venueAddress}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 text-sm">
                             <Users className="h-4 w-4 text-gray-400" />
                             <div className="flex flex-wrap gap-1">
@@ -284,10 +361,96 @@ export function ActivitiesPerProvince() {
                               ))}
                             </div>
                           </div>
+
+                          {/* Additional Details */}
+                          {activity.description && (
+                            <div className="pt-2 border-t">
+                              <p className="text-sm text-gray-700 font-medium mb-1">Description:</p>
+                              <p className="text-sm text-gray-600">{activity.description}</p>
+                            </div>
+                          )}
+
+                          {activity.participants && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Users className="h-4 w-4 text-gray-400" />
+                              <span className="text-gray-600">Expected Participants: {activity.participants}</span>
+                            </div>
+                          )}
+
+                          {activity.facilitator && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Users className="h-4 w-4 text-gray-400" />
+                              <span className="text-gray-600">Facilitator: {activity.facilitator}</span>
+                            </div>
+                          )}
+
+                          {activity.partnerInstitution && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <MapPin className="h-4 w-4 text-gray-400" />
+                              <span className="text-gray-600">Partner Institution: {activity.partnerInstitution}</span>
+                            </div>
+                          )}
+
+                          {activity.changeReason && (
+                            <div className="pt-2 border-t">
+                              <p className="text-sm text-gray-700 font-medium mb-1">Change Reason:</p>
+                              <p className="text-sm text-gray-600">{activity.changeReason}</p>
+                              {activity.changeDate && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Changed on: {new Date(activity.changeDate).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {activity.createdBy && (
+                            <div className="pt-2 border-t">
+                              <p className="text-sm text-gray-700 font-medium mb-1">Created By:</p>
+                              <p className="text-sm text-gray-600">{activity.createdBy.fullName}</p>
+                              <p className="text-xs text-gray-500">{activity.createdBy.idNumber} • {activity.createdBy.email}</p>
+                            </div>
+                          )}
+
+                          {activity.assignedPersonnel && activity.assignedPersonnel.length > 0 && (
+                            <div className="pt-2 border-t">
+                              <p className="text-sm text-gray-700 font-medium mb-2">Assigned Personnel:</p>
+                              <div className="space-y-1">
+                                {activity.assignedPersonnel.map((person, index) => (
+                                  <div key={index} className="text-sm text-gray-600">
+                                    <span className="font-medium">{person.fullName}</span> ({person.idNumber})
+                                    {person.task && <span className="text-gray-500"> - {person.task}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {activity.documents && activity.documents.length > 0 && (
+                            <div className="pt-2 border-t">
+                              <p className="text-sm text-gray-700 font-medium mb-2">Documents:</p>
+                              <div className="space-y-1">
+                                {activity.documents.map((doc, index) => (
+                                  <div key={index} className="text-sm">
+                                    <a
+                                      href={doc.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:text-blue-800 underline"
+                                    >
+                                      {doc.name}
+                                    </a>
+                                    <p className="text-xs text-gray-500">
+                                      Uploaded: {new Date(doc.uploadDate).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           <div className="pt-2 border-t text-sm text-gray-600">
-                            <p>Partner: {activity.partnerInstitution}</p>
                             <p>Resource Person: {activity.resourcePerson}</p>
-                            <p>Mode: {activity.mode}</p>
+                            <p>Mode: {activity.mode}{activity.platform ? ` (${activity.platform})` : ''}</p>
                           </div>
                         </CardContent>
                       </Card>
@@ -315,9 +478,16 @@ export function ActivitiesPerProvince() {
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-2">
                         <CardTitle className="text-gray-900">{activity.name}</CardTitle>
-                        <Badge className={getStatusColor(activity.status)}>
-                          {activity.status}
-                        </Badge>
+                        <div className="flex gap-2">
+                          <Badge className={getStatusColor(activity.status)}>
+                            {activity.status}
+                          </Badge>
+                          {activity.priority && (
+                            <Badge variant="outline" className={activity.priority === "Urgent" ? "border-red-500 text-red-700" : "border-blue-500 text-blue-700"}>
+                              {activity.priority}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
@@ -334,7 +504,7 @@ export function ActivitiesPerProvince() {
                             year: "numeric"
                           })}
                           {" • "}
-                          {activity.timeStart} - {activity.timeEnd}
+                          {formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
@@ -353,10 +523,96 @@ export function ActivitiesPerProvince() {
                           ))}
                         </div>
                       </div>
+
+                      {/* Additional Details */}
+                      {activity.description && (
+                        <div className="pt-2 border-t">
+                          <p className="text-sm text-gray-700 font-medium mb-1">Description:</p>
+                          <p className="text-sm text-gray-600">{activity.description}</p>
+                        </div>
+                      )}
+
+                      {activity.participants && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Users className="h-4 w-4 text-gray-400" />
+                          <span className="text-gray-600">Expected Participants: {activity.participants}</span>
+                        </div>
+                      )}
+
+                      {activity.facilitator && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Users className="h-4 w-4 text-gray-400" />
+                          <span className="text-gray-600">Facilitator: {activity.facilitator}</span>
+                        </div>
+                      )}
+
+                      {activity.partnerInstitution && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <MapPin className="h-4 w-4 text-gray-400" />
+                          <span className="text-gray-600">Partner Institution: {activity.partnerInstitution}</span>
+                        </div>
+                      )}
+
+                      {activity.changeReason && (
+                        <div className="pt-2 border-t">
+                          <p className="text-sm text-gray-700 font-medium mb-1">Change Reason:</p>
+                          <p className="text-sm text-gray-600">{activity.changeReason}</p>
+                          {activity.changeDate && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Changed on: {new Date(activity.changeDate).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {activity.createdBy && (
+                        <div className="pt-2 border-t">
+                          <p className="text-sm text-gray-700 font-medium mb-1">Created By:</p>
+                          <p className="text-sm text-gray-600">{activity.createdBy.fullName}</p>
+                          <p className="text-xs text-gray-500">{activity.createdBy.idNumber} • {activity.createdBy.email}</p>
+                        </div>
+                      )}
+
+                      {activity.assignedPersonnel && activity.assignedPersonnel.length > 0 && (
+                        <div className="pt-2 border-t">
+                          <p className="text-sm text-gray-700 font-medium mb-2">Assigned Personnel:</p>
+                          <div className="space-y-1">
+                            {activity.assignedPersonnel.map((person, index) => (
+                              <div key={index} className="text-sm text-gray-600">
+                                <span className="font-medium">{person.fullName}</span> ({person.idNumber})
+                                {person.task && <span className="text-gray-500"> - {person.task}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {activity.documents && activity.documents.length > 0 && (
+                        <div className="pt-2 border-t">
+                          <p className="text-sm text-gray-700 font-medium mb-2">Documents:</p>
+                          <div className="space-y-1">
+                            {activity.documents.map((doc, index) => (
+                              <div key={index} className="text-sm">
+                                <a
+                                  href={doc.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:text-blue-800 underline"
+                                >
+                                  {doc.name}
+                                </a>
+                                <p className="text-xs text-gray-500">
+                                  Uploaded: {new Date(doc.uploadDate).toLocaleDateString()}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="pt-2 border-t text-sm text-gray-600">
-                        <p>Partner: {activity.partnerInstitution}</p>
                         <p>Resource Person: {activity.resourcePerson}</p>
-                        <p>Mode: {activity.mode}</p>
+                        <p>Mode: {activity.mode}{activity.platform ? ` (${activity.platform})` : ''}</p>
                       </div>
                     </CardContent>
                   </Card>

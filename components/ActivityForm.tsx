@@ -18,12 +18,12 @@ import { sendActivityEmail } from "./utils/emailService";
 export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSubmitted?: () => void; onViewRecords?: () => void; prefillDate?: string }) {
   const { addActivity } = useActivities();
   const { user } = useAuth();
-  const [startDate, setStartDate] = useState<Date>(() => {
+  const [startDate, setStartDate] = useState<Date | undefined>(() => {
     if (prefillDate) {
       const d = new Date(prefillDate);
       if (!isNaN(d.getTime())) return d;
     }
-    return undefined as unknown as Date;
+    return undefined;
   });
   const [endDate, setEndDate] = useState<Date>();
   const [selectedTargetSectors, setSelectedTargetSectors] = useState<string[]>([]);
@@ -39,6 +39,8 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
   const [selectedCity, setSelectedCity] = useState<string>("");
   const [activityNameBeforeFor, setActivityNameBeforeFor] = useState<string>("");
   const [activityNameAfterFor, setActivityNameAfterFor] = useState<string>("");
+  const [selectedMode, setSelectedMode] = useState<string>("");
+  const [selectedPlatform, setSelectedPlatform] = useState<string>("");
 
   const projects = [
     "IIDB",
@@ -255,7 +257,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     );
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!startDate) return alert("Please select a start date");
 
@@ -289,6 +291,22 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
       });
       return;
     }
+
+    // Validate mode selection
+    if (!selectedMode) {
+      toast.error("Mode of Implementation required", {
+        description: "Please select a mode of implementation",
+      });
+      return;
+    }
+
+    // Validate platform selection for online mode
+    if (selectedMode === "online" && !selectedPlatform) {
+      toast.error("Online Platform required", {
+        description: "Please select an online platform when choosing Online mode",
+      });
+      return;
+    }
     const project = selectedProjects.join(", "); // Join multiple projects with comma
     const province = String(data.get("province") || "");
     const city = String(data.get("city") || "");
@@ -297,6 +315,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
       ? province 
       : `${province}${city ? `, ${city}` : ''}`.trim();
     const venue = String(data.get("barangay") || "");
+    const venueAddress = String(data.get("venueAddress") || "").trim();
     const facilitator = String(data.get("resourcePerson") || "");
     const partnerInstitution = String(data.get("partnerInstitution") || "");
     const participantsCount = expectedParticipants ? parseInt(expectedParticipants, 10) : undefined;
@@ -318,33 +337,35 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     }
 
     const dateKey = format(startDate, "yyyy-MM-dd");
-    const id = String(Date.now());
 
-    addActivity({
-      id,
-      name,
-      date: dateKey,
-      time: timeStart,
-      endTime: timeEnd,
-      location,
-      venue,
-      sector: selectedTargetSectors[0] || "LGU",
-      project,
-      description: String(data.get("description") || ""),
-      participants: participantsCount || undefined,
-      facilitator,
-      status: "Scheduled",
-      createdBy: user
-        ? {
-            idNumber: user.idNumber,
-            fullName: user.fullName,
-            email: user.email,
-          }
-        : undefined,
-      assignedPersonnel: assignedPersonnel.length > 0 ? assignedPersonnel : undefined,
-      priority: priority,
-      partnerInstitution: partnerInstitution || undefined,
-    });
+    try {
+      await addActivity({
+        name,
+        date: dateKey,
+        time: timeStart,
+        endTime: timeEnd,
+        location,
+        venue,
+        venueAddress: venueAddress || undefined,
+        sector: selectedTargetSectors[0] || "LGU",
+        project,
+        description: String(data.get("description") || ""),
+        participants: participantsCount || undefined,
+        facilitator,
+        status: "Scheduled",
+        assignedPersonnel: assignedPersonnel.length > 0 ? assignedPersonnel : undefined,
+        priority: priority,
+        partnerInstitution: partnerInstitution || undefined,
+        mode: selectedMode,
+        platform: selectedMode === "online" ? selectedPlatform : undefined,
+      });
+
+      toast.success("Activity created successfully");
+      onSubmitted?.();
+    } catch (error) {
+      toast.error("Failed to create activity");
+      return;
+    }
 
     // Send email notification (non-blocking - don't wait for it)
     const recipientEmail = "vishy.te@dict.gov.ph"; // Test email provided by user
@@ -355,6 +376,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
       endTime: timeEnd,
       location,
       venue,
+      venueAddress: venueAddress || undefined,
       project,
       description: String(data.get("description") || ""),
       participants: participantsCount || undefined,
@@ -624,7 +646,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                 <Label htmlFor="modeOfImplementation">
                   Mode of Implementation <span className="text-red-500">*</span>
                 </Label>
-                <Select required name="modeOfImplementation">
+                <Select value={selectedMode} onValueChange={setSelectedMode} required name="modeOfImplementation">
                   <SelectTrigger>
                     <SelectValue placeholder="Select mode" />
                   </SelectTrigger>
@@ -635,6 +657,41 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Online Platform Selection - Only show when Online is selected */}
+              {selectedMode === "online" && (
+                <div className="space-y-2">
+                  <Label htmlFor="onlinePlatform">
+                    Online Platform <span className="text-red-500">*</span>
+                  </Label>
+                  <Select value={selectedPlatform} onValueChange={setSelectedPlatform} required name="onlinePlatform">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select platform" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="zoom">Zoom</SelectItem>
+                      <SelectItem value="google-meet">Google Meet</SelectItem>
+                      <SelectItem value="other">Other Platforms</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Full Address of the Venue - Only show when not Online */}
+              {selectedMode !== "online" && (
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="venueAddress">
+                    Full Address of the Venue
+                  </Label>
+                  <Textarea
+                    id="venueAddress"
+                    name="venueAddress"
+                    placeholder="Enter the complete address of the venue"
+                    rows={3}
+                    className="resize-none"
+                  />
+                </div>
+              )}
 
               {/* Partner Institution */}
               <div className="space-y-2 md:col-span-2">
