@@ -126,9 +126,16 @@ export function ActivitiesPerProvince() {
     return matchesSearch && matchesProvince && matchesProject && matchesStatus && matchesPriority;
   });
 
-  // Group activities by province
+  // Group activities by province and sort by priority (urgent first)
   const activitiesByProvince = provinces.reduce((acc, province) => {
-    acc[province] = filteredActivities.filter(activity => activity.province === province);
+    const provinceActivities = filteredActivities.filter(activity => activity.province === province);
+    // Sort so urgent activities appear first
+    provinceActivities.sort((a, b) => {
+      if (a.priority === "Urgent" && b.priority !== "Urgent") return -1;
+      if (a.priority !== "Urgent" && b.priority === "Urgent") return 1;
+      return 0;
+    });
+    acc[province] = provinceActivities;
     return acc;
   }, {} as Record<string, Activity[]>);
 
@@ -406,8 +413,8 @@ export function ActivitiesPerProvince() {
                           {activity.createdBy && (
                             <div className="pt-2 border-t">
                               <p className="text-sm text-gray-700 font-medium mb-1">Created By:</p>
-                              <p className="text-sm text-gray-600">{activity.createdBy.fullName}</p>
-                              <p className="text-xs text-gray-500">{activity.createdBy.idNumber} • {activity.createdBy.email}</p>
+                              <p className="text-sm text-gray-600">{activity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase())}</p>
+                              <p className="text-xs text-gray-500">ID: {activity.createdBy.idNumber}</p>
                             </div>
                           )}
 

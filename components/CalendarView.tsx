@@ -278,11 +278,39 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                 <div className="text-gray-600 text-sm">{now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
               </div>
             </div>
-            {/* Today's Activities inline list: time — title */}
+            {/* Today's Activities inline list: smart date display */}
             {(() => {
               const todayKey = new Date().toISOString().slice(0, 10);
               const todays = activities[todayKey] || [];
               if (todays.length === 0) return null;
+              
+              const getDateDisplay = (activity: any) => {
+                const startDate = new Date(activity.date);
+                const startDateKey = activity.date;
+                const todayKey = new Date().toISOString().slice(0, 10);
+                
+                // Check if this is today
+                if (startDateKey === todayKey) {
+                  // For multi-day events starting today, show the full range
+                  if (activity.endDate && activity.endDate !== activity.date) {
+                    const endDate = new Date(activity.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                    return `Today - ${endDate}`;
+                  }
+                  return "Today";
+                }
+                
+                // For multi-day events, show the full range
+                if (activity.endDate && activity.endDate !== activity.date) {
+                  const endDate = new Date(activity.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  const formattedDate = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  return `${formattedDate} - ${endDate}`;
+                }
+                
+                // For single-day events, show just the start date
+                const formattedDate = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                return formattedDate;
+              };
+              
               return (
                 <div className="flex-1 overflow-x-auto">
                   <div className="flex flex-col items-center">
@@ -292,18 +320,18 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                         <button
                           key={a.id}
                           type="button"
-                          className="mr-3 inline-flex flex-col items-start rounded-md hover:bg-blue-50 hover:text-blue-900 px-2 py-1 transition-colors text-left align-top"
+                          className={`mr-3 inline-flex flex-col items-start rounded-md hover:bg-blue-50 px-2 py-1 transition-colors text-left align-top ${
+                            a.priority === "Urgent" ? "hover:bg-red-50 hover:text-red-900 text-red-700" : "hover:text-blue-900 text-blue-900"
+                          }`}
                           onClick={() => {
                             setSelectedActivity(a);
                             setViewDialogOpen(true);
                           }}
-                          title={`${a.name} — ${formatTimeDisplay(a.time)} to ${formatTimeDisplay(a.endTime)}`}
+                          title={`${a.name}`}
                         >
-                          <span className="truncate max-w-[260px] font-semibold text-blue-900">{a.name}</span>
-                          <span className="opacity-80">
-                            {formatTimeDisplay(a.time)}
-                            <span className="opacity-60 mx-1">to</span>
-                            {formatTimeDisplay(a.endTime)}
+                          <span className="truncate max-w-[260px] font-semibold">{a.name}</span>
+                          <span className="opacity-80 text-xs">
+                            {getDateDisplay(a)}
                           </span>
                         </button>
                       ))}
@@ -440,15 +468,34 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                       setViewDialogOpen(true);
                     }}
                     className={`p-4 rounded-lg space-y-2 cursor-pointer transition-all border 
-                      ${activity.status === "Completed" ? "bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300" : ""}
-                      ${activity.status === "Scheduled" ? "bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300" : ""}
-                      ${activity.status === "Postponed" ? "bg-orange-50 border-orange-200 hover:bg-orange-100 hover:border-orange-300" : ""}
-                      ${activity.status === "Cancelled" ? "bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300" : ""}
+                      ${activity.priority === "Urgent" ? "bg-red-50 border-red-300 hover:bg-red-100 hover:border-red-400" : ""}
+                      ${activity.priority !== "Urgent" && activity.status === "Completed" ? "bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300" : ""}
+                      ${activity.priority !== "Urgent" && activity.status === "Scheduled" ? "bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300" : ""}
+                      ${activity.priority !== "Urgent" && activity.status === "Postponed" ? "bg-orange-50 border-orange-200 hover:bg-orange-100 hover:border-orange-300" : ""}
+                      ${activity.priority !== "Urgent" && activity.status === "Cancelled" ? "bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300" : ""}
                     `}
                   >
                     <div className="flex items-start justify-between">
-                      <div className="text-gray-900">{activity.name}</div>
-                      <Eye className="h-4 w-4 text-blue-600" />
+                      <div className={`text-gray-900 ${activity.priority === "Urgent" ? "font-bold text-red-700" : ""}`}>
+                        {activity.name}
+                        {activity.priority === "Urgent" && (
+                          <span className="ml-2 inline-block px-2 py-0.5 bg-red-200 text-red-800 text-xs font-semibold rounded">
+                            URGENT
+                          </span>
+                        )}
+                      </div>
+                      <Eye className={`h-4 w-4 ${activity.priority === "Urgent" ? "text-red-600" : "text-blue-600"}`} />
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Calendar className="h-4 w-4" />
+                      {(() => {
+                        const startDate = new Date(activity.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                        if (activity.endDate && activity.endDate !== activity.date) {
+                          const endDate = new Date(activity.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                          return `${startDate} - ${endDate}`;
+                        }
+                        return startDate;
+                      })()}
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Clock className="h-4 w-4" />
@@ -460,11 +507,14 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     </div>
                     {activity.createdBy && (
                       <div className="text-xs text-gray-600">
-                        Created by {activity.createdBy.fullName} ({activity.createdBy.idNumber})
+                        Created by {activity.createdBy.fullName.charAt(0).toUpperCase() + activity.createdBy.fullName.slice(1).toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
                       </div>
                     )}
                     <div className="flex gap-2">
                       <Badge variant="secondary">{activity.sector}</Badge>
+                      {activity.priority === "Urgent" && (
+                        <Badge className="bg-red-600 text-white">Urgent</Badge>
+                      )}
                       <Badge className="bg-blue-600 w-[90px] overflow-hidden whitespace-nowrap" title={activity.project}>
                         <span className={`inline-block ${activity.project.length > 12 ? 'animate-marquee' : ''}`}>
                           {activity.project}
@@ -517,13 +567,20 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
               <DialogHeader>
                 <DialogTitle className="text-blue-900">{selectedActivity.name}</DialogTitle>
                 <DialogDescription>
-                  {selectedActivity.date} • {formatTimeDisplay(selectedActivity.time)} - {formatTimeDisplay(selectedActivity.endTime)}
+                  {(() => {
+                    const startDate = new Date(selectedActivity.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                    if (selectedActivity.endDate && selectedActivity.endDate !== selectedActivity.date) {
+                      const endDate = new Date(selectedActivity.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                      return `${startDate} - ${endDate} • ${formatTimeDisplay(selectedActivity.time)} - ${formatTimeDisplay(selectedActivity.endTime)}`;
+                    }
+                    return `${startDate} • ${formatTimeDisplay(selectedActivity.time)} - ${formatTimeDisplay(selectedActivity.endTime)}`;
+                  })()}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-4">
-                {/* Status Badge */}
-                <div>
+                {/* Status Badge and Priority */}
+                <div className="flex gap-2">
                   <Badge
                     className={
                       selectedActivity.status === "Completed"
@@ -537,6 +594,11 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                   >
                     {selectedActivity.status}
                   </Badge>
+                  {selectedActivity.priority === "Urgent" && (
+                    <Badge className="bg-red-600 text-white">
+                      ⚠️ URGENT PRIORITY
+                    </Badge>
+                  )}
                 </div>
 
                 {/* Change Alert */}
@@ -612,7 +674,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                       <UserCheck className="h-5 w-5 text-blue-600 mt-0.5" />
                       <div>
                         <div className="text-sm text-gray-600">Created By</div>
-                        <div className="text-gray-900">{selectedActivity.createdBy ? `${selectedActivity.createdBy.fullName} (${selectedActivity.createdBy.idNumber})` : "—"}</div>
+                        <div className="text-gray-900">{selectedActivity.createdBy ? selectedActivity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase()) : "—"}</div>
                       </div>
                     </div>
                     <div className="flex items-start gap-2">

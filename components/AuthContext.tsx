@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { authAPI } from "../utils/api";
+// @ts-ignore
+import bcrypt from "bcryptjs";
 
 interface User {
   id: number;
@@ -13,6 +15,17 @@ interface User {
   project: string;
 }
 
+interface LocalUser {
+  id: number;
+  username: string;
+  email: string;
+  password_hash: string;
+  first_name: string;
+  middle_name?: string;
+  last_name: string;
+  project: string;
+}
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -23,6 +36,33 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Get all local users from localStorage
+function getLocalUsers(): LocalUser[] {
+  try {
+    const users = localStorage.getItem('local_users');
+    return users ? JSON.parse(users) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Save users to localStorage
+function saveLocalUsers(users: LocalUser[]): void {
+  localStorage.setItem('local_users', JSON.stringify(users));
+}
+
+// Find user by username
+function findLocalUser(username: string): LocalUser | null {
+  const users = getLocalUsers();
+  return users.find(u => u.username === username) || null;
+}
+
+// Check if username or email exists
+function userExists(username: string, email: string): boolean {
+  const users = getLocalUsers();
+  return users.some(u => u.username === username || u.email === email);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check if user is already logged in
     const token = localStorage.getItem('auth_token');
     if (token) {
-      // Validate token and get user profile
+      // Try to get user profile from backend first
       authAPI.getProfile()
         .then((response: any) => {
           setUser(response.data);
@@ -47,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string): Promise<{ success: boolean; message?: string }> => {
     try {
+      // First try backend
       const response = await authAPI.login({ username, password });
       const { token, user: userData } = response.data;
 
@@ -55,7 +96,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return { success: true };
     } catch (error: any) {
-      return { success: false, message: error.response?.data?.error || 'Login failed' };
+      // Fall back to local users
+      const localUser = findLocalUser(username);
+      if (!localUser) {
+        return { success: false, message: 'Invalid credentials' };
+      }
+
+      // Check password against hash (for local storage, we'll use a simple comparison)
+      // In production, use proper bcrypt comparison
+      try {
+        const passwordMatch = await bcrypt.compare(password, localUser.password_hash);
+        if (!passwordMatch) {
+          return { success: false, message: 'Invalid credentials' };
+        }
+
+        // Generate a mock token for local user
+        const mockToken = 'local_' + btoa(localUser.username + '_' + Date.now());
+        localStorage.setItem('auth_token', mockToken);
+        localStorage.setItem('current_local_user', JSON.stringify(localUser));
+
+        const userData = {
+          id: localUser.id,
+          username: localUser.username,
+          fullName: `${localUser.first_name} ${localUser.middle_name ? localUser.middle_name + ' ' : ''}${localUser.last_name}`,
+          firstName: localUser.first_name,
+          middleName: localUser.middle_name,
+          lastName: localUser.last_name,
+          idNumber: localUser.username,
+          email: localUser.email,
+          project: localUser.project
+        };
+
+        setUser(userData);
+        return { success: true };
+      } catch (err) {
+        return { success: false, message: 'Login failed' };
+      }
     }
   };
 
@@ -81,20 +157,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, message: "Passwords do not match" };
     }
 
-    try {
-      await authAPI.register({
-        username,
-        email,
-        password,
-        firstName,
-        middleName: middleName || undefined,
-        lastName,
-        project
-      });
+    // Check if user already exists
+    if (userExists(username, email)) {
+      return { success: false, message: "Username or email already exists" };
+    }
 
-      return { success: true, message: "Registration successful" };
+    try {
+      // Try backend first
+      try {
+        await authAPI.register({
+          username,
+          email,
+          password,
+          firstName,
+          middleName: middleName || undefined,
+          lastName,
+          project
+        });
+
+        return { success: true, message: "Registration successful" };
+      } catch (backendError: any) {
+        // If backend fails, save to local storage as temporary solution
+        console.warn('Backend registration failed, saving to local storage:', backendError.message);
+        
+        // Hash password using bcryptjs
+        const passwordHash = await bcrypt.hash(password, 10);
+        
+        // Get existing users
+        const users = getLocalUsers();
+        
+        // Create new user
+        const newUser: LocalUser = {
+          id: Math.max(...users.map(u => u.id), 0) + 1,
+          username,
+          email,
+          password_hash: passwordHash,
+          first_name: firstName,
+          middle_name: middleName || undefined,
+          last_name: lastName,
+          project
+        };
+        
+        // Add to users and save
+        users.push(newUser);
+        saveLocalUsers(users);
+        
+        console.log('✅ User registered locally:', username);
+        return { success: true, message: "Registration successful (saved locally)" };
+      }
     } catch (error: any) {
-      return { success: false, message: error.response?.data?.error || 'Registration failed' };
+      console.error('Registration error:', error);
+      return { success: false, message: error.message || 'Registration failed' };
     }
   };
 

@@ -783,10 +783,17 @@ export function ActivityRecords() {
               </TableHeader>
               <TableBody>
                 {sortedActivities.map((activity) => (
-                  <TableRow key={activity.id} className="hover:bg-gray-50">
+                  <TableRow key={activity.id} className={`hover:bg-gray-50 ${activity.priority === "Urgent" ? "bg-red-50" : ""}`}>
                     <TableCell>
                       <div>
-                        <p className="text-gray-900">{activity.name}</p>
+                        <p className={`text-gray-900 ${activity.priority === "Urgent" ? "font-bold text-red-700" : ""}`}>
+                          {activity.name}
+                          {activity.priority === "Urgent" && (
+                            <span className="ml-2 inline-block px-2 py-0.5 bg-red-200 text-red-800 text-xs font-semibold rounded">
+                              URGENT
+                            </span>
+                          )}
+                        </p>
                         <p className="text-sm text-gray-500">{formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}</p>
                       </div>
                     </TableCell>
@@ -830,17 +837,24 @@ export function ActivityRecords() {
                     <TableCell>
                       {activity.createdBy ? (
                         <div className="text-xs text-gray-700">
-                          <div className="text-gray-900">{activity.createdBy.fullName}</div>
-                          <div className="text-gray-500">{activity.createdBy.idNumber}</div>
+                          <div className="text-gray-900">{activity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase())}</div>
+                        <div className="text-xs text-gray-500" hidden></div>
                         </div>
                       ) : (
                         <span className="text-xs text-gray-500">—</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(activity.status)}>
-                        {activity.status}
-                      </Badge>
+                      <div className="flex gap-2 flex-wrap">
+                        <Badge className={getStatusColor(activity.status)}>
+                          {activity.status}
+                        </Badge>
+                        {activity.priority === "Urgent" && (
+                          <Badge className="bg-red-600 text-white">
+                            Urgent
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-2">
@@ -897,7 +911,7 @@ export function ActivityRecords() {
                                 <div>
                                   <p className="text-sm text-gray-600">Created By</p>
                                   <p className="text-gray-900">
-                                    {activity.createdBy ? `${activity.createdBy.fullName} (${activity.createdBy.idNumber})` : "—"}
+                                    {activity.createdBy ? activity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase()) : "—"}
                                   </p>
                                 </div>
                                 <div>

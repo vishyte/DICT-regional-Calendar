@@ -126,36 +126,52 @@ export function LoginPage() {
       return;
     }
     
-    const data = JSON.parse(storedData);
+    let data;
+    try {
+      data = JSON.parse(storedData);
+    } catch (parseError) {
+      setError("Registration data corrupted. Please start registration again.");
+      setVerificationStep('form');
+      sessionStorage.removeItem(`verification_code_${email}`);
+      sessionStorage.removeItem(`verification_data_${email}`);
+      return;
+    }
+
     setLoading(true);
     
     setTimeout(async () => {
-      const result = await register(data.username, data.email, data.password, data.password, data.firstName, data.middleName, data.lastName, data.project);
-      
-      // Clean up session storage
-      sessionStorage.removeItem(`verification_code_${email}`);
-      sessionStorage.removeItem(`verification_data_${email}`);
-      
-      if (!result.success) {
-        setError(result.message);
-        setLoading(false);
-      } else {
-        toast.success("Registration successful!", {
-          description: "You can now log in with your credentials.",
-        });
-        // Switch to login form
-        setIsRegistering(false);
-        setVerificationStep('form');
-        setUsername("");
-        setFirstName("");
-        setMiddleName("");
-        setLastName("");
-        setPassword("");
-        setConfirmPassword("");
-        setEmail("");
+      try {
+        const result = await register(data.username, data.email, data.password, data.password, data.firstName, data.middleName, data.lastName, data.project);
+        
+        // Clean up session storage
+        sessionStorage.removeItem(`verification_code_${email}`);
+        sessionStorage.removeItem(`verification_data_${email}`);
+        
+        if (!result.success) {
+          setError(result.message);
+          setLoading(false);
+        } else {
+          toast.success("Registration successful!", {
+            description: "You can now log in with your credentials.",
+          });
+          // Switch to login form
+          setIsRegistering(false);
+          setVerificationStep('form');
+          setUsername("");
+          setFirstName("");
+          setMiddleName("");
+          setLastName("");
+          setPassword("");
+          setConfirmPassword("");
+          setEmail("");
         setProject("");
         setEnteredCode("");
         setVerificationCode("");
+        setLoading(false);
+      }
+      } catch (err: any) {
+        console.error('Registration error:', err);
+        setError("An unexpected error occurred during registration. Please try again.");
         setLoading(false);
       }
     }, 500);

@@ -4,17 +4,17 @@ import { authenticateToken, AuthRequest } from '../middleware';
 
 const router = express.Router();
 
-// Get all activities
-router.get('/', authenticateToken, async (req: AuthRequest, res) => {
+// Get all activities (public)
+router.get('/', async (req: AuthRequest, res) => {
   try {
-    const result = await pool.query(`
+    const result = pool.query(`
       SELECT a.*, u.username as created_by_username, u.first_name, u.last_name, u.email, u.project as creator_project
       FROM activities a
       JOIN users u ON a.created_by_id = u.id
       ORDER BY a.date, a.time
     `);
 
-    const activities = result.rows.map(row => ({
+    const activities = result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       date: row.date,
@@ -60,22 +60,58 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       venueAddress
     } = req.body;
 
-    const result = await pool.query(
+    // Validate required fields
+    if (!name || !date || !time || !endTime || !location || !venue || !sector || !project) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const result = pool.query(
       `INSERT INTO activities (
         name, date, time, end_time, location, venue, sector, project, description,
         participants, facilitator, status, created_by_id, priority, partner_institution,
         mode, platform, venue_address
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-      RETURNING *`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [name, date, time, endTime, location, venue, sector, project, description,
        participants, facilitator, 'Scheduled', req.user!.id, priority, partnerInstitution,
        mode, platform, venueAddress]
     );
 
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
+    // Get the inserted activity
+    const resultRow = (result.rows[0] as any);
+    const insertedResult = pool.query(
+      'SELECT * FROM activities WHERE rowid = ?',
+      [resultRow?.id || 0]
+    );
+
+    const activity = insertedResult.rows[0] as any;
+    if (!activity) {
+      return res.status(500).json({ error: 'Failed to retrieve created activity' });
+    }
+
+    res.status(201).json({ 
+      message: 'Activity created successfully',
+      activity: {
+        id: activity.id,
+        name: activity.name,
+        date: activity.date,
+        time: activity.time,
+        endTime: activity.end_time
+      }
+    });
+  } catch (error: any) {
     console.error('Create activity error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      detail: error.detail
+    });
+    
+    let errorMessage = 'Failed to create activity';
+    if (error.message?.includes('FOREIGN KEY')) {
+      errorMessage = 'User not found. Please log in again.';
+    }
+    
+    res.status(500).json({ error: errorMessage });
   }
 });
 
@@ -87,13 +123,11 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
 
     const fields: string[] = [];
     const values: any[] = [];
-    let paramCount = 1;
 
     Object.keys(updates).forEach(key => {
       if (updates[key] !== undefined) {
-        fields.push(`${key} = $${paramCount}`);
+        fields.push(`${key} = ?`);
         values.push(updates[key]);
-        paramCount++;
       }
     });
 
@@ -102,14 +136,14 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     values.push(id);
-    const query = `UPDATE activities SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${paramCount} RETURNING *`;
+    const query = `UPDATE activities SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
 
-    const result = await pool.query(query, values);
-    if (result.rows.length === 0) {
+    const result = pool.query(query, values);
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
 
-    res.json(result.rows[0]);
+    res.json({ message: 'Activity updated' });
   } catch (error) {
     console.error('Update activity error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -120,9 +154,9 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
 router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query('DELETE FROM activities WHERE id = $1 RETURNING id', [id]);
+    const result = pool.query('DELETE FROM activities WHERE id = ?', [id]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
 

@@ -5,7 +5,8 @@ import { useAuth } from "./AuthContext";
 export type Activity = {
   id: number;
   name: string;
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD (start date)
+  endDate?: string; // YYYY-MM-DD (for multi-day events)
   originalDate?: string;
   time: string;
   endTime: string;
@@ -67,9 +68,22 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
 
-  const refreshActivities = async () => {
-    if (!user) return;
+  // Get local activities from localStorage
+  const getLocalActivities = (): Activity[] => {
+    try {
+      const stored = localStorage.getItem('local_activities');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  };
 
+  // Save activities to localStorage
+  const saveLocalActivities = (activitiesToSave: Activity[]): void => {
+    localStorage.setItem('local_activities', JSON.stringify(activitiesToSave));
+  };
+
+  const refreshActivities = async () => {
     setLoading(true);
     try {
       const response = await activitiesAPI.getAll();
@@ -86,7 +100,17 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
 
       setActivities(grouped);
     } catch (error) {
-      console.error('Failed to fetch activities:', error);
+      console.error('Failed to fetch activities from backend:', error);
+      // Fall back to local activities
+      const localActivities = getLocalActivities();
+      const grouped: DayActivities = {};
+      localActivities.forEach(activity => {
+        if (!grouped[activity.date]) {
+          grouped[activity.date] = [];
+        }
+        grouped[activity.date].push(activity);
+      });
+      setActivities(grouped);
     } finally {
       setLoading(false);
     }
@@ -100,9 +124,37 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
     try {
       await activitiesAPI.create(activityData);
       await refreshActivities();
-    } catch (error) {
-      console.error('Failed to add activity:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('Failed to add activity via API:', error);
+      // Fall back to local storage
+      console.log('Saving activity to local storage...');
+      
+      const localActivities = getLocalActivities();
+      const newId = Math.max(...localActivities.map(a => a.id), 0) + 1;
+      
+      // Get creator info from current user
+      let createdBy = undefined;
+      if (user) {
+        createdBy = {
+          idNumber: user.idNumber,
+          fullName: user.fullName,
+          email: user.email,
+          project: user.project
+        };
+      }
+      
+      const newActivity: Activity = {
+        id: newId,
+        ...activityData,
+        createdBy
+      };
+      
+      localActivities.push(newActivity);
+      saveLocalActivities(localActivities);
+      
+      // Refresh to show the new activity
+      await refreshActivities();
+      console.log('✅ Activity saved locally:', newActivity.name);
     }
   };
 
@@ -110,9 +162,19 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
     try {
       await activitiesAPI.update(id, updates);
       await refreshActivities();
-    } catch (error) {
-      console.error('Failed to update activity:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('Failed to update activity via API:', error);
+      // Fall back to local storage
+      const localActivities = getLocalActivities();
+      const index = localActivities.findIndex(a => a.id === id);
+      if (index >= 0) {
+        localActivities[index] = { ...localActivities[index], ...updates };
+        saveLocalActivities(localActivities);
+        await refreshActivities();
+        console.log('✅ Activity updated locally:', id);
+      } else {
+        throw error;
+      }
     }
   };
 
@@ -120,9 +182,14 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
     try {
       await activitiesAPI.delete(id);
       await refreshActivities();
-    } catch (error) {
-      console.error('Failed to delete activity:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('Failed to delete activity via API:', error);
+      // Fall back to local storage
+      const localActivities = getLocalActivities();
+      const filtered = localActivities.filter(a => a.id !== id);
+      saveLocalActivities(filtered);
+      await refreshActivities();
+      console.log('✅ Activity deleted locally:', id);
     }
   };
 

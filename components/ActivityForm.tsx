@@ -339,9 +339,13 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     const dateKey = format(startDate, "yyyy-MM-dd");
 
     try {
+      // Format end date if it exists and is different from start date
+      const endDateKey = endDate ? format(endDate, "yyyy-MM-dd") : undefined;
+      
       await addActivity({
         name,
         date: dateKey,
+        endDate: endDateKey && endDateKey !== dateKey ? endDateKey : undefined,
         time: timeStart,
         endTime: timeEnd,
         location,
