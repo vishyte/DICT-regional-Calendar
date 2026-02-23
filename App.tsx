@@ -87,7 +87,13 @@ function AppContent() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-6 py-8">
-          <SuperadminDashboard />
+          <SuperadminDashboard
+            onLogout={() => {
+              setSuperadminUser(null);
+              setIsSuperadminMode(false);
+            }}
+            superadminName={superadminUser?.username}
+          />
         </div>
       </div>
     );
