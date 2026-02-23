@@ -56,7 +56,7 @@ interface Activity {
   resourcePerson: string;
   changeReason?: string;
   changeDate?: string;
-};
+}
 
 export function ActivitiesPerProvince() {
   const { activities: calendarActivities } = useActivities();
@@ -118,6 +118,7 @@ export function ActivitiesPerProvince() {
     }
     return out;
   }, [calendarActivities]);
+  
   // Use fixed, ordered provinces list
   const provinces = [
     "Davao City",
@@ -184,6 +185,17 @@ export function ActivitiesPerProvince() {
     "Technical Operations Division"
   ];
 
+  // Handler functions to fix implicit any errors
+  const handleProvinceChange = (value: string) => {
+    setSelectedProvince(value);
+    setActiveTab(value);
+  };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setSelectedProvince(value === "all" ? "all" : value);
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -218,7 +230,7 @@ export function ActivitiesPerProvince() {
 
             <div className="space-y-2">
               <label className="text-sm text-gray-600">Province</label>
-              <Select value={selectedProvince} onValueChange={(v) => { setSelectedProvince(v); setActiveTab(v); }}>
+              <Select value={selectedProvince} onValueChange={handleProvinceChange}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -308,7 +320,7 @@ export function ActivitiesPerProvince() {
       </Card>
 
       {/* Tabs for Provinces */}
-      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedProvince(v === "all" ? "all" : v); }} className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid grid-cols-3 md:grid-cols-7 w-full mb-6">
           <TabsTrigger value="all">All</TabsTrigger>
           {provinces.map((province) => (

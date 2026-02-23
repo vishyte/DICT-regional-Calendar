@@ -14,8 +14,11 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["vite/client"]
   },
-  "include": ["./**/*.ts", "./**/*.tsx"],
+  "include": [
+    "src/**/*.ts", 
+    "src/**/*.tsx",
+    "components/**/*.ts", 
+    "components/**/*.tsx"
+  ],
   "exclude": ["node_modules", "dist"]
 }
-
-

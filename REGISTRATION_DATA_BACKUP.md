@@ -118,7 +118,9 @@ mkdir -p backend/registration_backup
 ```
 
 ### Need to see detailed errors
-Set `NODE_ENV=development` to see detailed error messages in responses:
+Set `NODE_ENV=development` to see detailed error messagesgit add package.json
+git commit -m "chore(frontend): add root package.json for Vercel build"
+git push in responses:
 ```bash
 NODE_ENV=development npm start
 ```
