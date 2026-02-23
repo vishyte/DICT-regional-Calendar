@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Search, MapPin, Calendar, Users, Briefcase, Filter } from "lucide-react";
 import { Button } from "./ui/button";
 import { formatTimeDisplay } from "./utils/timeFormat";
+import { deriveDisplayStatus, DisplayStatus } from "./utils/status";
 import { useActivities } from "./ActivitiesContext";
 
 interface Activity {
@@ -25,7 +26,7 @@ interface Activity {
   description?: string;
   participants?: number;
   facilitator?: string;
-  status: "Scheduled" | "Completed" | "Postponed" | "Cancelled" | "Upcoming" | "Ongoing";
+  status: DisplayStatus;
   priority?: "Normal" | "Urgent";
   partnerInstitution?: string;
   mode?: string;
@@ -61,14 +62,25 @@ export function ActivitiesPerProvince() {
   const { activities: calendarActivities } = useActivities();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProvince, setSelectedProvince] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<string>("all");
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
 
   const activities: Activity[] = useMemo(() => {
     const out: Activity[] = [];
+    const FIXED_PROVINCES = [
+      "Davao City",
+      "Davao de Oro",
+      "Davao Oriental",
+      "Davao Occidental",
+      "Davao del Sur",
+      "Davao del Norte",
+    ];
     for (const [, items] of Object.entries(calendarActivities)) {
       for (const a of items) {
+        const location = (a.location || "").toString();
+        const matched = FIXED_PROVINCES.find(p => location.toLowerCase().includes(p.toLowerCase()));
         out.push({
           id: a.id,
           name: a.name,
@@ -83,14 +95,14 @@ export function ActivitiesPerProvince() {
           venue: a.venue,
           sector: a.sector,
           targetSector: [a.sector].filter(Boolean),
-          province: a.location,
+          province: matched || a.location,
           district: "",
           barangay: a.venue,
           venueAddress: a.venueAddress,
           partnerInstitution: a.partnerInstitution,
           resourcePerson: a.facilitator || "",
           mode: a.mode || "On-site",
-          status: a.status === "Scheduled" ? "Upcoming" : a.status,
+          status: deriveDisplayStatus(a),
           priority: a.priority,
           description: a.description,
           participants: a.participants,
@@ -106,12 +118,15 @@ export function ActivitiesPerProvince() {
     }
     return out;
   }, [calendarActivities]);
-
-  // Dynamically get all unique provinces from activities
-  const provinces = useMemo(() => {
-    const uniqueProvinces = new Set(activities.map(activity => activity.province));
-    return Array.from(uniqueProvinces).sort();
-  }, [activities]);
+  // Use fixed, ordered provinces list
+  const provinces = [
+    "Davao City",
+    "Davao de Oro",
+    "Davao Oriental",
+    "Davao Occidental",
+    "Davao del Sur",
+    "Davao del Norte",
+  ];
 
   // Filter activities
   const filteredActivities = activities.filter(activity => {
@@ -143,6 +158,8 @@ export function ActivitiesPerProvince() {
     switch (status) {
       case "Completed":
         return "bg-green-100 text-green-700";
+      case "Submission of Documents":
+        return "bg-yellow-100 text-yellow-700";
       case "Ongoing":
         return "bg-blue-100 text-blue-700";
       case "Upcoming":
@@ -201,7 +218,7 @@ export function ActivitiesPerProvince() {
 
             <div className="space-y-2">
               <label className="text-sm text-gray-600">Province</label>
-              <Select value={selectedProvince} onValueChange={setSelectedProvince}>
+              <Select value={selectedProvince} onValueChange={(v) => { setSelectedProvince(v); setActiveTab(v); }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -243,7 +260,10 @@ export function ActivitiesPerProvince() {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="Upcoming">Upcoming</SelectItem>
                   <SelectItem value="Ongoing">Ongoing</SelectItem>
+                  <SelectItem value="Submission of Documents">Submission of Documents</SelectItem>
                   <SelectItem value="Completed">Completed</SelectItem>
+                  <SelectItem value="Postponed">Postponed</SelectItem>
+                  <SelectItem value="Cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -274,8 +294,10 @@ export function ActivitiesPerProvince() {
                 onClick={() => {
                   setSearchQuery("");
                   setSelectedProvince("all");
+                  setActiveTab("all");
                   setSelectedProject("all");
                   setSelectedStatus("all");
+                  setSelectedPriority("all");
                 }}
               >
                 Clear Filters
@@ -286,8 +308,8 @@ export function ActivitiesPerProvince() {
       </Card>
 
       {/* Tabs for Provinces */}
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid grid-cols-3 md:grid-cols-6 w-full mb-6">
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedProvince(v === "all" ? "all" : v); }} className="w-full">
+        <TabsList className="grid grid-cols-3 md:grid-cols-7 w-full mb-6">
           <TabsTrigger value="all">All</TabsTrigger>
           {provinces.map((province) => (
             <TabsTrigger key={province} value={province} className="text-xs md:text-sm">
@@ -297,28 +319,101 @@ export function ActivitiesPerProvince() {
         </TabsList>
 
         <TabsContent value="all">
-          <div className="space-y-6">
-            {provinces.map((province) => {
-              const provinceActivities = activitiesByProvince[province];
-              if (provinceActivities.length === 0) return null;
-
-              return (
-                <div key={province}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <MapPin className="h-5 w-5 text-blue-600" />
-                    <h3 className="text-blue-900">{province}</h3>
-                    <Badge variant="secondary">{provinceActivities.length}</Badge>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredActivities.map((activity) => (
+              <Card key={activity.id} className="border-0 shadow-md hover:shadow-lg transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="text-gray-900">{activity.name}</CardTitle>
+                    <div className="flex gap-2">
+                      {(() => {
+                        const ds = deriveDisplayStatus(activity) || activity.status;
+                        return (
+                          <Badge className={getStatusColor(ds)}>
+                            {ds}
+                          </Badge>
+                        );
+                      })()}
+                      {activity.priority && (
+                        <Badge variant="outline" className={activity.priority === "Urgent" ? "border-red-500 text-red-700" : "border-blue-500 text-blue-700"}>
+                          {activity.priority}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {provinceActivities.map((activity) => (
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Briefcase className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-600">{activity.project}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-600">
+                      {new Date(activity.date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric"
+                      })}
+                      {" • "}
+                      {formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <MapPin className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-600">
+                      {activity.province}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <MapPin className="h-4 w-4 text-gray-400" />
+                    <span className="text-gray-600">
+                      {activity.barangay}, {activity.district}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Users className="h-4 w-4 text-gray-400" />
+                    <div className="flex flex-wrap gap-1">
+                      {activity.targetSector.map((sector) => (
+                        <Badge key={sector} variant="outline" className="text-xs">
+                          {sector}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        {provinces.map((province) => {
+          const provinceActivities = activitiesByProvince[province] || [];
+          return (
+            <TabsContent key={province} value={province}>
+              {provinceActivities.length === 0 ? (
+                <Card className="border-0 shadow-lg">
+                  <CardContent className="p-12 text-center">
+                    <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-600">No activities found for {province}</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {provinceActivities.map((activity) => (
                       <Card key={activity.id} className="border-0 shadow-md hover:shadow-lg transition-shadow">
                         <CardHeader className="pb-3">
                           <div className="flex items-start justify-between gap-2">
                             <CardTitle className="text-gray-900">{activity.name}</CardTitle>
                             <div className="flex gap-2">
-                              <Badge className={getStatusColor(activity.status)}>
-                                {activity.status}
-                              </Badge>
+                              {(() => {
+                                const ds = deriveDisplayStatus(activity) || activity.status;
+                                return (
+                                  <Badge className={getStatusColor(ds)}>
+                                    {ds}
+                                  </Badge>
+                                );
+                              })()}
                               {activity.priority && (
                                 <Badge variant="outline" className={activity.priority === "Urgent" ? "border-red-500 text-red-700" : "border-blue-500 text-blue-700"}>
                                   {activity.priority}
@@ -462,172 +557,11 @@ export function ActivitiesPerProvince() {
                         </CardContent>
                       </Card>
                     ))}
-                  </div>
                 </div>
-              );
-            })}
-          </div>
-        </TabsContent>
-
-        {provinces.map((province) => (
-          <TabsContent key={province} value={province}>
-            {activitiesByProvince[province].length === 0 ? (
-              <Card className="border-0 shadow-lg">
-                <CardContent className="p-12 text-center">
-                  <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-600">No activities found for {province}</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {activitiesByProvince[province].map((activity) => (
-                  <Card key={activity.id} className="border-0 shadow-md hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <CardTitle className="text-gray-900">{activity.name}</CardTitle>
-                        <div className="flex gap-2">
-                          <Badge className={getStatusColor(activity.status)}>
-                            {activity.status}
-                          </Badge>
-                          {activity.priority && (
-                            <Badge variant="outline" className={activity.priority === "Urgent" ? "border-red-500 text-red-700" : "border-blue-500 text-blue-700"}>
-                              {activity.priority}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Briefcase className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-600">{activity.project}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Calendar className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-600">
-                          {new Date(activity.date).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric"
-                          })}
-                          {" • "}
-                          {formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <MapPin className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-600">
-                          {activity.barangay}, {activity.district}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Users className="h-4 w-4 text-gray-400" />
-                        <div className="flex flex-wrap gap-1">
-                          {activity.targetSector.map((sector) => (
-                            <Badge key={sector} variant="outline" className="text-xs">
-                              {sector}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Additional Details */}
-                      {activity.description && (
-                        <div className="pt-2 border-t">
-                          <p className="text-sm text-gray-700 font-medium mb-1">Description:</p>
-                          <p className="text-sm text-gray-600">{activity.description}</p>
-                        </div>
-                      )}
-
-                      {activity.participants && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Users className="h-4 w-4 text-gray-400" />
-                          <span className="text-gray-600">Expected Participants: {activity.participants}</span>
-                        </div>
-                      )}
-
-                      {activity.facilitator && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Users className="h-4 w-4 text-gray-400" />
-                          <span className="text-gray-600">Facilitator: {activity.facilitator}</span>
-                        </div>
-                      )}
-
-                      {activity.partnerInstitution && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <MapPin className="h-4 w-4 text-gray-400" />
-                          <span className="text-gray-600">Partner Institution: {activity.partnerInstitution}</span>
-                        </div>
-                      )}
-
-                      {activity.changeReason && (
-                        <div className="pt-2 border-t">
-                          <p className="text-sm text-gray-700 font-medium mb-1">Change Reason:</p>
-                          <p className="text-sm text-gray-600">{activity.changeReason}</p>
-                          {activity.changeDate && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Changed on: {new Date(activity.changeDate).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {activity.createdBy && (
-                        <div className="pt-2 border-t">
-                          <p className="text-sm text-gray-700 font-medium mb-1">Created By:</p>
-                          <p className="text-sm text-gray-600">{activity.createdBy.fullName}</p>
-                          <p className="text-xs text-gray-500">{activity.createdBy.idNumber} • {activity.createdBy.email}</p>
-                        </div>
-                      )}
-
-                      {activity.assignedPersonnel && activity.assignedPersonnel.length > 0 && (
-                        <div className="pt-2 border-t">
-                          <p className="text-sm text-gray-700 font-medium mb-2">Assigned Personnel:</p>
-                          <div className="space-y-1">
-                            {activity.assignedPersonnel.map((person, index) => (
-                              <div key={index} className="text-sm text-gray-600">
-                                <span className="font-medium">{person.fullName}</span> ({person.idNumber})
-                                {person.task && <span className="text-gray-500"> - {person.task}</span>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {activity.documents && activity.documents.length > 0 && (
-                        <div className="pt-2 border-t">
-                          <p className="text-sm text-gray-700 font-medium mb-2">Documents:</p>
-                          <div className="space-y-1">
-                            {activity.documents.map((doc, index) => (
-                              <div key={index} className="text-sm">
-                                <a
-                                  href={doc.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:text-blue-800 underline"
-                                >
-                                  {doc.name}
-                                </a>
-                                <p className="text-xs text-gray-500">
-                                  Uploaded: {new Date(doc.uploadDate).toLocaleDateString()}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="pt-2 border-t text-sm text-gray-600">
-                        <p>Resource Person: {activity.resourcePerson}</p>
-                        <p>Mode: {activity.mode}{activity.platform ? ` (${activity.platform})` : ''}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        ))}
+              )}
+            </TabsContent>
+          );
+        })}
       </Tabs>
 
       {filteredActivities.length === 0 && (

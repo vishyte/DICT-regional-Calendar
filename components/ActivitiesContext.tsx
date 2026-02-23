@@ -14,11 +14,12 @@ export type Activity = {
   venue: string;
   venueAddress?: string;
   sector: string;
+  targetSector?: string[];
   project: string;
   description?: string;
   participants?: number;
   facilitator?: string;
-  status: "Scheduled" | "Completed" | "Postponed" | "Cancelled";
+  status: "Scheduled" | "Completed" | "Submission of Documents" | "For Approval" | "Postponed" | "Cancelled";
   changeReason?: string;
   changeDate?: string;
   createdBy?: {

@@ -175,6 +175,8 @@ export function HomePage({
                           className={`px-3 py-1 rounded-full text-sm ${
                             activity.status === "Completed"
                               ? "bg-green-100 text-green-700"
+                              : activity.status === "Submission of Documents"
+                              ? "bg-yellow-100 text-yellow-700"
                               : "bg-orange-100 text-orange-700"
                           }`}
                         >

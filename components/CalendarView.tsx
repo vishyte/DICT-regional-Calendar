@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { ChevronLeft, ChevronRight, Calendar, CalendarPlus, MapPin, FileText, Clock, Users, Edit, Eye, UserCheck, AlertCircle, CheckCircle, X, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { formatTimeDisplay } from "./utils/timeFormat";
+import { deriveDisplayStatus } from "./utils/status";
 
 interface CalendarViewProps {
   onNavigateToActivity: (dateKey?: string) => void;
@@ -168,7 +169,12 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     
     // If status changed
     if (changeStatus) {
-      updatedActivity.status = changeStatus as "Scheduled" | "Completed" | "Postponed" | "Cancelled";
+      // Marking as Completed should transition to "Submission of Documents" (yellow)
+      if (changeStatus === "Completed") {
+        updatedActivity.status = "Submission of Documents" as any;
+      } else {
+        updatedActivity.status = changeStatus as "Scheduled" | "Completed" | "Submission of Documents" | "Postponed" | "Cancelled";
+      }
       updatedActivity.changeReason = changeReason;
       updatedActivity.changeDate = new Date().toISOString();
     }
@@ -460,7 +466,9 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
           <CardContent>
             {selectedActivities.length > 0 ? (
               <div className="space-y-4">
-                {selectedActivities.map((activity) => (
+                {selectedActivities.map((activity) => {
+                  const displayStatus = deriveDisplayStatus(activity) || activity.status;
+                  return (
                   <div
                     key={activity.id}
                     onClick={() => {
@@ -469,10 +477,11 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     }}
                     className={`p-4 rounded-lg space-y-2 cursor-pointer transition-all border 
                       ${activity.priority === "Urgent" ? "bg-red-50 border-red-300 hover:bg-red-100 hover:border-red-400" : ""}
-                      ${activity.priority !== "Urgent" && activity.status === "Completed" ? "bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300" : ""}
-                      ${activity.priority !== "Urgent" && activity.status === "Scheduled" ? "bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300" : ""}
-                      ${activity.priority !== "Urgent" && activity.status === "Postponed" ? "bg-orange-50 border-orange-200 hover:bg-orange-100 hover:border-orange-300" : ""}
-                      ${activity.priority !== "Urgent" && activity.status === "Cancelled" ? "bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300" : ""}
+                      ${activity.priority !== "Urgent" && displayStatus === "Completed" ? "bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300" : ""}
+                      ${activity.priority !== "Urgent" && displayStatus === "Submission of Documents" ? "bg-yellow-50 border-yellow-200 hover:bg-yellow-100 hover:border-yellow-300" : ""}
+                      ${activity.priority !== "Urgent" && displayStatus === "Scheduled" ? "bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300" : ""}
+                      ${activity.priority !== "Urgent" && displayStatus === "Postponed" ? "bg-orange-50 border-orange-200 hover:bg-orange-100 hover:border-orange-300" : ""}
+                      ${activity.priority !== "Urgent" && displayStatus === "Cancelled" ? "bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300" : ""}
                     `}
                   >
                     <div className="flex items-start justify-between">
@@ -522,7 +531,8 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                       </Badge>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 text-gray-500">
@@ -561,8 +571,10 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
 
       {/* Activity Details Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          {selectedActivity && (
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {selectedActivity && (() => {
+            const displaySelectedStatus = deriveDisplayStatus(selectedActivity) || selectedActivity.status;
+            return (
             <>
               <DialogHeader>
                 <DialogTitle className="text-blue-900">{selectedActivity.name}</DialogTitle>
@@ -583,16 +595,18 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                 <div className="flex gap-2">
                   <Badge
                     className={
-                      selectedActivity.status === "Completed"
+                      displaySelectedStatus === "Completed"
                         ? "bg-green-600"
-                        : selectedActivity.status === "Scheduled"
+                        : displaySelectedStatus === "Submission of Documents"
+                        ? "bg-yellow-600"
+                        : displaySelectedStatus === "Scheduled"
                         ? "bg-blue-600"
-                        : selectedActivity.status === "Postponed"
+                        : displaySelectedStatus === "Postponed"
                         ? "bg-orange-600"
                         : "bg-red-600"
                     }
                   >
-                    {selectedActivity.status}
+                    {displaySelectedStatus}
                   </Badge>
                   {selectedActivity.priority === "Urgent" && (
                     <Badge className="bg-red-600 text-white">
@@ -678,10 +692,10 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                       </div>
                     </div>
                     <div className="flex items-start gap-2">
-                      <UserCheck className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <MapPin className="h-5 w-5 text-blue-600 mt-0.5" />
                       <div>
-                        <div className="text-sm text-gray-600">Facilitator</div>
-                        <div className="text-gray-900">{selectedActivity.facilitator}</div>
+                        <div className="text-sm text-gray-600">Full Address</div>
+                        <div className="text-gray-900">{selectedActivity.venueAddress || `${selectedActivity.venue || ""}, ${selectedActivity.location || ""}`}</div>
                       </div>
                     </div>
 
@@ -694,9 +708,23 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     </div>
 
                     <div className="flex items-start gap-2">
-                      <Badge variant="secondary" className="mt-1">
-                        {selectedActivity.sector}
-                      </Badge>
+                      <div>
+                        <div className="text-sm text-gray-600">Target Sector</div>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {(selectedActivity.targetSector && selectedActivity.targetSector.length > 0)
+                            ? selectedActivity.targetSector.map((s: string) => (
+                                <Badge key={s} variant="outline" className="text-xs">
+                                  {s}
+                                </Badge>
+                              ))
+                            : (
+                              <Badge variant="secondary" className="mt-1">
+                                {selectedActivity.sector}
+                              </Badge>
+                            )
+                          }
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -726,7 +754,8 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                 </Button>
               </DialogFooter>
             </>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -898,12 +927,12 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                   <SelectTrigger id="change-status">
                     <SelectValue placeholder="Keep current status" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Scheduled">Mark as Scheduled</SelectItem>
-                    <SelectItem value="Postponed">Mark as Postponed</SelectItem>
-                    <SelectItem value="Cancelled">Mark as Cancelled</SelectItem>
-                    <SelectItem value="Completed">Mark as Completed</SelectItem>
-                  </SelectContent>
+                    <SelectContent>
+                      <SelectItem value="Scheduled">Mark as Scheduled</SelectItem>
+                      <SelectItem value="Postponed">Mark as Postponed</SelectItem>
+                      <SelectItem value="Cancelled">Mark as Cancelled</SelectItem>
+                      <SelectItem value="Submission of Documents">Mark as Submission of Documents</SelectItem>
+                    </SelectContent>
                 </Select>
               </div>
 

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "./ui/label";
 import { Search, Filter, Download, Eye, Calendar, Users, Clock, FileText, Edit, AlertCircle } from "lucide-react";
 import { formatTimeDisplay } from "./utils/timeFormat";
+import { deriveDisplayStatus } from "./utils/status";
 import { Alert, AlertDescription } from "./ui/alert";
 
 interface Activity {
@@ -18,6 +19,7 @@ interface Activity {
   name: string;
   project: string;
   date: string;
+  endDate?: string;
   originalDate?: string;
   timeStart: string;
   timeEnd: string;
@@ -30,7 +32,8 @@ interface Activity {
   partnerInstitution: string;
   resourcePerson: string;
   mode: string;
-  status: "Completed" | "Postponed" | "Cancelled" | "Upcoming" | "Ongoing";
+  status: "Scheduled" | "Completed" | "Submission of Documents" | "Postponed" | "Cancelled" | "Upcoming" | "Ongoing" | "For Approval";
+  priority?: "Normal" | "Urgent";
   participants: number;
   notes?: string;
   changeReason?: string;
@@ -408,6 +411,7 @@ export function ActivityRecords() {
           name: a.name,
           project: a.project,
           date: a.date,
+          endDate: (a as any).endDate,
           timeStart: a.time,
           timeEnd: a.endTime,
           duration: "",
@@ -419,7 +423,7 @@ export function ActivityRecords() {
           partnerInstitution: "",
           resourcePerson: a.facilitator || "",
           mode: "On-site",
-          status: a.status === "Scheduled" ? "Upcoming" : a.status as any,
+          status: deriveDisplayStatus(a),
           participants: a.participants || 0,
           originalDate: a.originalDate,
           changeReason: a.changeReason,
@@ -443,7 +447,7 @@ export function ActivityRecords() {
                          activity.partnerInstitution.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesProject = selectedProject === "all" || activity.project === selectedProject;
     const matchesProvince = selectedProvince === "all" || activity.province === selectedProvince;
-    const matchesStatus = selectedStatus === "all" || activity.status === selectedStatus;
+    const matchesStatus = selectedStatus === "all" || (selectedStatus === "Pending" ? activity.status === "Submission of Documents" : activity.status === selectedStatus);
     const activityMonth = new Date(activity.date).getMonth().toString();
     const matchesMonth = selectedMonth === "all" || activityMonth === selectedMonth;
     
@@ -476,11 +480,15 @@ export function ActivityRecords() {
 
   const getStatusColor = (status: string) => {
     if (status === "Completed") return "bg-green-100 text-green-700";
+    if (status === "Submission of Documents") return "bg-yellow-100 text-yellow-700";
+    if (status === "For Approval") return "bg-purple-100 text-purple-700";
     if (status === "Upcoming") return "bg-orange-100 text-orange-700";
     if (status === "Ongoing") return "bg-blue-100 text-blue-700";
     if (status === "Postponed") return "bg-yellow-100 text-yellow-700";
     return "bg-red-100 text-red-700"; // Cancelled
   };
+
+  
 
   const handleExport = () => {
     console.log("Exporting data...");
@@ -500,40 +508,57 @@ export function ActivityRecords() {
   const handleSaveChanges = () => {
     if (!editingActivity) return;
 
-    // Validation: If activity is already Completed, ensure both files are uploaded
-    if (editingActivity.status === "Completed") {
-      const hasAttendanceFile = attendanceFile || attendanceFileName;
-      const hasTodaFile = todaFile || todaFileName;
-      
-      if (!hasAttendanceFile || !hasTodaFile) {
-        alert("Cannot update a Completed activity. Both Attendance and TODA files must be uploaded first.");
-        return;
-      }
+    // Prevent submitting files while the activity is still upcoming or ongoing
+    if (editingActivity.status === "Ongoing" || editingActivity.status === "Upcoming") {
+      alert("Cannot submit files while activity is Upcoming or Ongoing.");
+      return;
     }
-    
+
+    // Check if at least one file is being submitted
+    if (!attendanceFile && !todaFile) {
+      alert("Please upload at least one file (Attendance or TODA) before submitting.");
+      return;
+    }
+
+    let contextPayload: Partial<any> | null = null;
     const updatedActivities = activities.map(activity => {
       if (activity.id === editingActivity.id) {
         const updates: Partial<Activity> = {
           participants: participantCount
         };
         
-        // If attendance file was uploaded
+        // If attendance file was uploaded - save as temporary object URL
         if (attendanceFile) {
-          // In a real app, this would upload to a server
-          // For now, we'll store the file name and simulate a URL
           updates.attendanceFile = URL.createObjectURL(attendanceFile);
           updates.attendanceFileName = attendanceFile.name;
           updates.attendanceUploadDate = new Date().toISOString();
         }
 
-        // If TODA file was uploaded
+        // If TODA file was uploaded - save as temporary object URL
         if (todaFile) {
-          // In a real app, this would upload to a server
-          // For now, we'll store the file name and simulate a URL
           updates.todaFile = URL.createObjectURL(todaFile);
           updates.todaFileName = todaFile.name;
           updates.todaUploadDate = new Date().toISOString();
         }
+
+        // Get final file status (newly uploaded or already existing)
+        const finalAttendanceFile = updates.attendanceFileName || attendanceFileName;
+        const finalTodaFile = updates.todaFileName || todaFileName;
+        
+        // Mark as "For Approval" if BOTH files are present after submission
+        if (finalAttendanceFile && finalTodaFile) {
+          updates.status = "For Approval" as any;
+        }
+        
+        // Build payload for context update (if this came from calendar)
+        contextPayload = { participants: participantCount };
+        if (updates.attendanceFileName) contextPayload.attendanceFileName = updates.attendanceFileName;
+        if (updates.attendanceFile) contextPayload.attendanceFile = updates.attendanceFile;
+        if (updates.attendanceUploadDate) contextPayload.attendanceUploadDate = updates.attendanceUploadDate;
+        if (updates.todaFileName) contextPayload.todaFileName = updates.todaFileName;
+        if (updates.todaFile) contextPayload.todaFile = updates.todaFile;
+        if (updates.todaUploadDate) contextPayload.todaUploadDate = updates.todaUploadDate;
+        if (updates.status) contextPayload.status = updates.status;
         
         return { ...activity, ...updates };
       }
@@ -544,11 +569,11 @@ export function ActivityRecords() {
 
     // If this record originated from the calendar context (id starts with "cal-"),
     // also update the shared calendar data so the calendar reflects the change.
-    if (editingActivity.id.startsWith("cal-")) {
+    if (editingActivity.id.startsWith("cal-") && contextPayload) {
       const originalId = parseInt(editingActivity.id.replace(/^cal-/, ""));
       try {
         const { updateActivity } = useActivities();
-        updateActivity(originalId, { participants: participantCount });
+        updateActivity(originalId, contextPayload);
       } catch {}
     }
     setEditDialogOpen(false);
@@ -615,6 +640,17 @@ export function ActivityRecords() {
                 <p className="text-gray-900">{combinedActivities.filter(a => a.status === "Ongoing").length}</p>
               </div>
               <Clock className="h-8 w-8 text-blue-500" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-md">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm">Pending</p>
+                <p className="text-gray-900">{combinedActivities.filter(a => a.status === "Submission of Documents").length}</p>
+              </div>
+              <FileText className="h-8 w-8 text-yellow-500" />
             </div>
           </CardContent>
         </Card>
@@ -734,6 +770,7 @@ export function ActivityRecords() {
                   <SelectItem value="Upcoming">Upcoming</SelectItem>
                   <SelectItem value="Ongoing">Ongoing</SelectItem>
                   <SelectItem value="Completed">Completed</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
                   <SelectItem value="Postponed">Postponed</SelectItem>
                   <SelectItem value="Cancelled">Cancelled</SelectItem>
                 </SelectContent>
@@ -1087,11 +1124,10 @@ export function ActivityRecords() {
               <div>
                 <p className="text-sm text-gray-600 mb-2">Date</p>
                 <p className="text-gray-900">
-                  {new Date(editingActivity.date).toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric"
-                  })}
+                  {editingActivity.endDate && editingActivity.endDate !== editingActivity.date
+                    ? `${new Date(editingActivity.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} - ${new Date(editingActivity.endDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`
+                    : new Date(editingActivity.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+                  }
                 </p>
               </div>
 
@@ -1197,7 +1233,10 @@ export function ActivityRecords() {
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveChanges}>
+            <Button
+              onClick={handleSaveChanges}
+              disabled={!!editingActivity && (editingActivity.status === "Ongoing" || editingActivity.status === "Upcoming")}
+            >
               Submit
             </Button>
           </DialogFooter>
