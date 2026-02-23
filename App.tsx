@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider, useAuth } from "./components/AuthContext";
 import { ActivitiesProvider } from "./components/ActivitiesContext";
 import { LoginPage } from "./components/LoginPage";
@@ -187,6 +188,7 @@ export default function App() {
     <AuthProvider>
       <ActivitiesProvider>
         <AppContent />
+        <SpeedInsights />
       </ActivitiesProvider>
     </AuthProvider>
   );
