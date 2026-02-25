@@ -1,14 +1,12 @@
 import { useState, useMemo } from "react";
-import { Calendar } from "./ui/calendar";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Checkbox } from "./ui/checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Textarea } from "./ui/textarea";
-import { CalendarIcon, Clock, MapPin, Users, Briefcase, X, UserPlus, AlertCircle } from "lucide-react";
+import { Clock, MapPin, Users, Briefcase, X, UserPlus, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useActivities } from "./ActivitiesContext";
 import { useAuth } from "./AuthContext";
@@ -25,7 +23,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     }
     return undefined;
   });
-  const [endDate, setEndDate] = useState<Date>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedTargetSectors, setSelectedTargetSectors] = useState<string[]>([]);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [timeStart, setTimeStart] = useState<string>("");
@@ -41,6 +39,12 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
   const [activityNameAfterFor, setActivityNameAfterFor] = useState<string>("");
   const [selectedMode, setSelectedMode] = useState<string>("");
   const [selectedPlatform, setSelectedPlatform] = useState<string>("");
+
+  interface Personnel {
+    idNumber: string;
+    fullName: string;
+    email?: string;
+  }
 
   const projects = [
     "IIDB",
@@ -146,19 +150,34 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     ? [...(citiesByProvince[selectedProvince] || []), "Other"]
     : [];
 
-  // Full personnel list
-  const allPersonnel = [
-    { idNumber: "DICT-25-001", fullName: "Engr. Ma. Jessa Garsuta", email: "user@dict.gov.ph" },
-    { idNumber: "DICT-25-002", fullName: "Maria Santos", email: "staff@dict.gov.ph" },
-    { idNumber: "DICT-25-003", fullName: "John Michael Dela Cruz", email: "staff.member@dict.gov.ph" },
-  ];
+  // Full personnel list - load from local registered users (no hardcoded defaults)
+  function getLocalPersonnel(): Personnel[] {
+    try {
+      const usersJson = localStorage.getItem('local_users');
+      if (usersJson) {
+        const users = JSON.parse(usersJson);
+        return users
+          .map((u: any) => ({
+            idNumber: u.username || String(u.id || ''),
+            fullName: `${u.first_name || ''}${u.middle_name ? ' ' + u.middle_name : ''} ${u.last_name || ''}`.trim(),
+            email: u.email || ''
+          }))
+          .filter((p: Personnel) => Boolean(p.fullName && p.idNumber));
+      }
+    } catch (e) {
+      console.error('Failed to load local personnel:', e);
+    }
+    return [];
+  }
+
+  const allPersonnel: Personnel[] = getLocalPersonnel();
 
   // Available personnel for assignment (excluding the current user)
-  const availablePersonnel = allPersonnel.filter(p => p.idNumber !== user?.idNumber);
+  const availablePersonnel = allPersonnel.filter((p: Personnel) => p.idNumber !== user?.idNumber);
 
   // Memoize unassigned personnel to prevent unnecessary re-renders
-  const unassignedPersonnel = useMemo(() => {
-    return availablePersonnel.filter(p => !assignedPersonnel.find(ap => ap.idNumber === p.idNumber));
+  const unassignedPersonnel = useMemo<Personnel[]>(() => {
+    return availablePersonnel.filter((p: Personnel) => !assignedPersonnel.find(ap => ap.idNumber === p.idNumber));
   }, [availablePersonnel, assignedPersonnel]);
 
   // Ensure selectedPersonnelId is valid
@@ -449,7 +468,6 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
           {/* Schedule Section */}
           <div className="space-y-6">
             <div className="flex items-center gap-2 pb-2 border-b-2 border-blue-200">
-              <CalendarIcon className="h-5 w-5 text-blue-600" />
               <h3 className="text-blue-900">Schedule Information</h3>
             </div>
             
@@ -457,63 +475,178 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
               {/* Start Date */}
               <div className="space-y-2">
                 <Label htmlFor="startDate">
-                  Start Date <span className="text-red-500">*</span>
+                  Start Date (MM/DD/YYYY) <span className="text-red-500">*</span>
                 </Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {startDate ? format(startDate, "PPP") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={startDate}
-                      onSelect={setStartDate}
-                      disabled={(date) => {
-                        const t = new Date();
-                        t.setHours(0, 0, 0, 0);
-                        return date < t;
-                      }}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <div className="flex gap-2">
+                  <Select value={startDate ? String(startDate.getMonth() + 1) : ""} onValueChange={(value) => {
+                    if (value) {
+                      const currentDate = startDate || new Date();
+                      const newDate = new Date(currentDate);
+                      newDate.setMonth(parseInt(value) - 1);
+                      setStartDate(newDate);
+                      setEndDate(new Date(newDate));
+                    }
+                  }}>
+                    <SelectTrigger className="w-24">
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">January</SelectItem>
+                      <SelectItem value="2">February</SelectItem>
+                      <SelectItem value="3">March</SelectItem>
+                      <SelectItem value="4">April</SelectItem>
+                      <SelectItem value="5">May</SelectItem>
+                      <SelectItem value="6">June</SelectItem>
+                      <SelectItem value="7">July</SelectItem>
+                      <SelectItem value="8">August</SelectItem>
+                      <SelectItem value="9">September</SelectItem>
+                      <SelectItem value="10">October</SelectItem>
+                      <SelectItem value="11">November</SelectItem>
+                      <SelectItem value="12">December</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="flex items-center text-gray-400">/</span>
+                  <Select value={startDate ? String(startDate.getDate()) : ""} onValueChange={(value) => {
+                    if (value) {
+                      const currentDate = startDate || new Date();
+                      const newDate = new Date(currentDate);
+                      newDate.setDate(parseInt(value));
+                      setStartDate(newDate);
+                      setEndDate(new Date(newDate));
+                    }
+                  }}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue placeholder="Day" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px]">
+                      {(() => {
+                        const month = startDate?.getMonth() ?? new Date().getMonth();
+                        const year = startDate?.getFullYear() ?? new Date().getFullYear();
+                        const daysInMonth = new Date(year, month + 1, 0).getDate();
+                        return Array.from({ length: daysInMonth }, (_, i) => {
+                          const day = i + 1;
+                          return <SelectItem key={day} value={String(day)}>{String(day).padStart(2, '0')}</SelectItem>;
+                        });
+                      })()}
+                    </SelectContent>
+                  </Select>
+                  <span className="flex items-center text-gray-400">/</span>
+                  <Select value={startDate ? String(startDate.getFullYear()) : ""} onValueChange={(value) => {
+                    if (value) {
+                      const currentDate = startDate || new Date();
+                      const newDate = new Date(currentDate);
+                      newDate.setFullYear(parseInt(value));
+                      setStartDate(newDate);
+                      setEndDate(new Date(newDate));
+                    }
+                  }}>
+                    <SelectTrigger className="w-24">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px]">
+                      {(() => {
+                        const currentYear = new Date().getFullYear();
+                        return Array.from({ length: 11 }, (_, i) => {
+                          const year = currentYear + i;
+                          return <SelectItem key={year} value={String(year)}>{year}</SelectItem>;
+                        });
+                      })()}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {startDate && startDate < new Date(new Date().setHours(0, 0, 0, 0)) && (
+                  <div className="flex items-start gap-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <p>Warning: This start date is in the past.</p>
+                  </div>
+                )}
               </div>
 
               {/* End Date */}
               <div className="space-y-2">
                 <Label htmlFor="endDate">
-                  End Date <span className="text-red-500">*</span>
+                  End Date (MM/DD/YYYY) <span className="text-red-500">*</span>
                 </Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {endDate ? format(endDate, "PPP") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={endDate}
-                      onSelect={setEndDate}
-                      disabled={(date) => {
-                        const t = new Date();
-                        t.setHours(0, 0, 0, 0);
-                        return date < t;
-                      }}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <div className="flex gap-2">
+                  <Select value={endDate ? String(endDate.getMonth() + 1) : ""} onValueChange={(value) => {
+                    if (value) {
+                      const currentDate = endDate || startDate || new Date();
+                      const newDate = new Date(currentDate);
+                      newDate.setMonth(parseInt(value) - 1);
+                      setEndDate(newDate);
+                    }
+                  }}>
+                    <SelectTrigger className="w-24">
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">January</SelectItem>
+                      <SelectItem value="2">February</SelectItem>
+                      <SelectItem value="3">March</SelectItem>
+                      <SelectItem value="4">April</SelectItem>
+                      <SelectItem value="5">May</SelectItem>
+                      <SelectItem value="6">June</SelectItem>
+                      <SelectItem value="7">July</SelectItem>
+                      <SelectItem value="8">August</SelectItem>
+                      <SelectItem value="9">September</SelectItem>
+                      <SelectItem value="10">October</SelectItem>
+                      <SelectItem value="11">November</SelectItem>
+                      <SelectItem value="12">December</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="flex items-center text-gray-400">/</span>
+                  <Select value={endDate ? String(endDate.getDate()) : ""} onValueChange={(value) => {
+                    if (value) {
+                      const currentDate = endDate || startDate || new Date();
+                      const newDate = new Date(currentDate);
+                      newDate.setDate(parseInt(value));
+                      setEndDate(newDate);
+                    }
+                  }}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue placeholder="Day" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px]">
+                      {(() => {
+                        const month = endDate?.getMonth() ?? new Date().getMonth();
+                        const year = endDate?.getFullYear() ?? new Date().getFullYear();
+                        const daysInMonth = new Date(year, month + 1, 0).getDate();
+                        return Array.from({ length: daysInMonth }, (_, i) => {
+                          const day = i + 1;
+                          return <SelectItem key={day} value={String(day)}>{String(day).padStart(2, '0')}</SelectItem>;
+                        });
+                      })()}
+                    </SelectContent>
+                  </Select>
+                  <span className="flex items-center text-gray-400">/</span>
+                  <Select value={endDate ? String(endDate.getFullYear()) : ""} onValueChange={(value) => {
+                    if (value) {
+                      const currentDate = endDate || startDate || new Date();
+                      const newDate = new Date(currentDate);
+                      newDate.setFullYear(parseInt(value));
+                      setEndDate(newDate);
+                    }
+                  }}>
+                    <SelectTrigger className="w-24">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px]">
+                      {(() => {
+                        const currentYear = new Date().getFullYear();
+                        return Array.from({ length: 11 }, (_, i) => {
+                          const year = currentYear + i;
+                          return <SelectItem key={year} value={String(year)}>{year}</SelectItem>;
+                        });
+                      })()}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {endDate && startDate && endDate < startDate && (
+                  <div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <p>Warning: End date cannot be before start date.</p>
+                  </div>
+                )}
               </div>
 
               {/* Time Start */}
@@ -886,7 +1019,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                     {unassignedPersonnel.length === 0 ? (
                       <SelectItem value="__disabled__" disabled>All personnel assigned</SelectItem>
                     ) : (
-                      unassignedPersonnel.map((person) => (
+                      unassignedPersonnel.map((person: Personnel) => (
                         <SelectItem key={person.idNumber} value={person.idNumber}>
                           {person.fullName} ({person.idNumber})
                         </SelectItem>
@@ -897,7 +1030,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                 
                 {assignedPersonnel.length > 0 && (
                   <div className="space-y-2 mt-3">
-                    {assignedPersonnel.map((person) => (
+                    {assignedPersonnel.map((person: { idNumber: string; fullName: string; task: string }) => (
                       <div key={person.idNumber} className="flex items-start gap-2 p-3 border border-gray-200 rounded-md bg-gray-50">
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-2">
@@ -962,10 +1095,10 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
 
           {/* Submit Button */}
           <div className="flex justify-end gap-4 pt-6">
-            <Button type="button" variant="outline">
+            <Button type="button" variant="outline" className="hover:bg-gray-100 hover:border-gray-400 hover:shadow-md transition-all duration-200 hover:scale-105">
               Cancel
             </Button>
-            <Button type="submit" className="bg-gradient-to-r from-blue-600 to-indigo-700">
+            <Button type="submit" className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 hover:shadow-lg transition-all duration-200 hover:scale-105">
               Submit Activity
             </Button>
           </div>

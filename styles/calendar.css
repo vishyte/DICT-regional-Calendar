@@ -1,0 +1,178 @@
+/* Calendar-specific styles to override react-day-picker defaults */
+
+.rdp {
+  padding: 1rem;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.rdp-months {
+  width: 100%;
+}
+
+.rdp-month {
+  width: 100%;
+}
+
+.rdp-caption {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  padding: 0.5rem 0;
+  margin-bottom: 1rem;
+  width: 100%;
+  height: 2.5rem;
+}
+
+.rdp-caption_label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.rdp-nav {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.rdp-nav_button {
+  position: absolute;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #4b5563;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rdp-nav_button:hover {
+  background-color: #f3f4f6;
+}
+
+.rdp-nav_button_previous {
+  left: 0;
+}
+
+.rdp-nav_button_next {
+  right: 0;
+}
+
+.rdp-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+.rdp-head_row {
+  display: flex;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.rdp-head_cell {
+  flex: 1;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.5rem 0;
+  line-height: 1.2;
+}
+
+.rdp-tbody {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+.rdp-row {
+  display: flex;
+  width: 100%;
+}
+
+.rdp-cell {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  text-align: center;
+  height: 2.5rem;
+}
+
+.rdp-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  max-width: 2.25rem;
+  max-height: 2.25rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rdp-day:not(.rdp-day_disabled):hover {
+  background-color: #dbeafe;
+  color: #2563eb;
+}
+
+.rdp-day_selected {
+  background-color: #2563eb;
+  color: white;
+  font-weight: 600;
+}
+
+.rdp-day_selected:hover {
+  background-color: #1d4ed8;
+}
+
+.rdp-day_today {
+  border: 2px solid #2563eb;
+  color: #2563eb;
+  font-weight: 700;
+  background-color: #eff6ff;
+}
+
+.rdp-day_outside {
+  color: #d1d5db;
+  opacity: 0.5;
+}
+
+.rdp-day_disabled {
+  color: #e5e7eb;
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rdp-day_range_start,
+.rdp-day_range_end {
+  background-color: #2563eb;
+  color: white;
+}
+
+.rdp-day_range_middle {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+

@@ -56,18 +56,47 @@ router.get('/', async (req, res) => {
 router.post('/', middleware_1.authenticateToken, async (req, res) => {
     try {
         const { name, date, time, endTime, location, venue, sector, project, description, participants, facilitator, priority, partnerInstitution, mode, platform, venueAddress } = req.body;
-        database_1.default.query(`INSERT INTO activities (
+        // Validate required fields
+        if (!name || !date || !time || !endTime || !location || !venue || !sector || !project) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        const result = database_1.default.query(`INSERT INTO activities (
         name, date, time, end_time, location, venue, sector, project, description,
         participants, facilitator, status, created_by_id, priority, partner_institution,
         mode, platform, venue_address
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [name, date, time, endTime, location, venue, sector, project, description,
             participants, facilitator, 'Scheduled', req.user.id, priority, partnerInstitution,
             mode, platform, venueAddress]);
-        res.status(201).json({ id: 1, name, date, time, endTime });
+        // Get the inserted activity
+        const resultRow = result.rows[0];
+        const insertedResult = database_1.default.query('SELECT * FROM activities WHERE rowid = ?', [resultRow?.id || 0]);
+        const activity = insertedResult.rows[0];
+        if (!activity) {
+            return res.status(500).json({ error: 'Failed to retrieve created activity' });
+        }
+        res.status(201).json({
+            message: 'Activity created successfully',
+            activity: {
+                id: activity.id,
+                name: activity.name,
+                date: activity.date,
+                time: activity.time,
+                endTime: activity.end_time
+            }
+        });
     }
     catch (error) {
         console.error('Create activity error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('Error details:', {
+            code: error.code,
+            message: error.message,
+            detail: error.detail
+        });
+        let errorMessage = 'Failed to create activity';
+        if (error.message?.includes('FOREIGN KEY')) {
+            errorMessage = 'User not found. Please log in again.';
+        }
+        res.status(500).json({ error: errorMessage });
     }
 });
 // Update activity

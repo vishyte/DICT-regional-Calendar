@@ -1,19 +1,79 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Users, Settings, FileText, LogOut, LayoutDashboard } from "lucide-react";
+import { Users, Settings, FileText, LogOut, LayoutDashboard, CheckCircle2 } from "lucide-react";
 import { UserManagement } from "./superadmin/UserManagement";
 import { AdminAssignment } from "./superadmin/AdminAssignment";
 import { ActivityLogsViewer } from "./superadmin/ActivityLogsViewer";
+import { ApprovalsPanel } from "./superadmin/ApprovalsPanel";
+import { usersAPI } from "../utils/api";
 
 interface SuperadminDashboardProps {
   onLogout: () => void;
   superadminName?: string;
 }
 
+interface DashboardStats {
+  totalUsers: number;
+  projectAdmins: number;
+}
+
+interface LocalUser {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  middle_name?: string;
+  last_name: string;
+  project: string;
+  role?: "superadmin" | "admin" | "user";
+}
+
 export function SuperadminDashboard({ onLogout, superadminName = "Administrator" }: SuperadminDashboardProps) {
   const [activeTab, setActiveTab] = useState("overview");
+  const [stats, setStats] = useState<DashboardStats>({ totalUsers: 0, projectAdmins: 0 });
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  useEffect(() => {
+    fetchDashboardStats();
+  }, []);
+
+  useEffect(() => {
+    // Refresh stats when switching tabs
+    if (activeTab === "overview") {
+      fetchDashboardStats();
+    }
+  }, [activeTab]);
+
+  const fetchDashboardStats = async () => {
+    setLoadingStats(true);
+    try {
+      // Try to fetch from backend
+      const response = await usersAPI.getAll();
+      const users = response.data?.users || response.data || [];
+
+      const totalUsers = users.length;
+      const projectAdmins = users.filter((u: any) => u.role === "admin").length;
+
+      setStats({ totalUsers, projectAdmins });
+    } catch (error) {
+      // Fallback to local storage
+      try {
+        const stored = localStorage.getItem("local_users");
+        if (stored) {
+          const localUsers: LocalUser[] = JSON.parse(stored);
+          const totalUsers = localUsers.length;
+          const projectAdmins = localUsers.filter((u) => u.role === "admin").length;
+          setStats({ totalUsers, projectAdmins });
+        }
+      } catch (e) {
+        console.error("Failed to load dashboard stats:", e);
+      }
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -53,7 +113,9 @@ export function SuperadminDashboard({ onLogout, superadminName = "Administrator"
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-gray-900">—</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {loadingStats ? "—" : stats.totalUsers}
+              </p>
             </CardContent>
           </Card>
 
@@ -65,7 +127,9 @@ export function SuperadminDashboard({ onLogout, superadminName = "Administrator"
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-gray-900">—</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {loadingStats ? "—" : stats.projectAdmins}
+              </p>
             </CardContent>
           </Card>
 
@@ -85,7 +149,7 @@ export function SuperadminDashboard({ onLogout, superadminName = "Administrator"
         {/* Tabs */}
         <Card>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 border-b">
+            <TabsList className="grid w-full grid-cols-5 border-b">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="users">
                 <Users className="h-4 w-4 mr-2" />
@@ -94,6 +158,10 @@ export function SuperadminDashboard({ onLogout, superadminName = "Administrator"
               <TabsTrigger value="admins">
                 <Settings className="h-4 w-4 mr-2" />
                 Project Admins
+              </TabsTrigger>
+              <TabsTrigger value="approvals">
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Approvals
               </TabsTrigger>
               <TabsTrigger value="logs">
                 <FileText className="h-4 w-4 mr-2" />
@@ -107,9 +175,9 @@ export function SuperadminDashboard({ onLogout, superadminName = "Administrator"
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-gray-600">
-                  Use this dashboard to manage system users, assign project administrators, and view activity logs.
+                  Use this dashboard to manage system users, assign project administrators, review TODA & Attendance approvals, and view activity logs.
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <h3 className="font-medium text-blue-900 mb-2">User Management</h3>
                     <p className="text-sm text-blue-700">Add, edit, and manage system users</p>
@@ -117,6 +185,10 @@ export function SuperadminDashboard({ onLogout, superadminName = "Administrator"
                   <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                     <h3 className="font-medium text-green-900 mb-2">Project Admins</h3>
                     <p className="text-sm text-green-700">Assign admins to specific projects</p>
+                  </div>
+                  <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <h3 className="font-medium text-emerald-900 mb-2">Approvals</h3>
+                    <p className="text-sm text-emerald-700">Review TODA & Attendance submissions</p>
                   </div>
                   <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
                     <h3 className="font-medium text-purple-900 mb-2">Activity Logs</h3>
@@ -132,6 +204,10 @@ export function SuperadminDashboard({ onLogout, superadminName = "Administrator"
 
             <TabsContent value="admins">
               <AdminAssignment />
+            </TabsContent>
+
+            <TabsContent value="approvals">
+              <ApprovalsPanel />
             </TabsContent>
 
             <TabsContent value="logs">

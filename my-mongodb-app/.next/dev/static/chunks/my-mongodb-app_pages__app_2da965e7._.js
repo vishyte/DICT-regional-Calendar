@@ -1,0 +1,14 @@
+(globalThis.TURBOPACK_CHUNK_LISTS || (globalThis.TURBOPACK_CHUNK_LISTS = [])).push({
+    script: typeof document === "object" ? document.currentScript : undefined,
+    chunks: [
+  "static/chunks/f2624_next_dist_compiled_17a397c7._.js",
+  "static/chunks/f2624_next_dist_shared_lib_5379aa03._.js",
+  "static/chunks/f2624_next_dist_client_04c7ca14._.js",
+  "static/chunks/f2624_next_dist_5a534681._.js",
+  "static/chunks/f2624_react-dom_6bcf89bf._.js",
+  "static/chunks/f2624_6983df23._.js",
+  "static/chunks/[root-of-the-server]__4fa4342a._.js",
+  "static/chunks/my-mongodb-app_styles_globals_cc5ba102.css"
+],
+    source: "entry"
+});

@@ -1,0 +1,24 @@
+query ListAllItems @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users.") {
+  items {
+    id
+    name
+    description
+  }
+}
+
+mutation CreateNewItem($name: String!, $description: String!) @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users.") {
+  item: items_insert(data: {
+    name: $name,
+    description: $description
+  })
+}
+
+mutation UpdateItemDescription($id: ID!, $newDescription: String!) @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users.") {
+  item: items_update(key: {id: $id}, data: {
+    description: $newDescription
+  })
+}
+
+mutation DeleteItem($id: ID!) @auth(level: USER, insecureReason: "This operation is safe to expose to all logged in users.") {
+  item: items_delete(key: {id: $id})
+}

@@ -3,7 +3,7 @@ import pool from '../database';
 async function createTables() {
   try {
     // Users table
-    pool.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username VARCHAR(50) UNIQUE NOT NULL,
@@ -13,17 +13,19 @@ async function createTables() {
         middle_name VARCHAR(100),
         last_name VARCHAR(100) NOT NULL,
         project VARCHAR(255) NOT NULL,
+        role VARCHAR(20) DEFAULT 'user',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // Activities table
-    pool.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS activities (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name VARCHAR(255) NOT NULL,
         date DATE NOT NULL,
+        end_date DATE,
         original_date DATE,
         time VARCHAR(20) NOT NULL,
         end_time VARCHAR(20) NOT NULL,
@@ -50,7 +52,7 @@ async function createTables() {
     `);
 
     // Assigned personnel table
-    pool.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS assigned_personnel (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         activity_id INTEGER NOT NULL,
@@ -63,7 +65,7 @@ async function createTables() {
     `);
 
     // Documents table
-    pool.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         activity_id INTEGER NOT NULL,
@@ -75,11 +77,28 @@ async function createTables() {
     `);
 
     console.log('✅ Database tables created successfully');
+    // Ensure `role` column exists on users table for upgrades
+    try {
+      const pragma = await pool.query("PRAGMA table_info(users)");
+      const cols = pragma.rows.map((r: any) => r.name);
+      if (!cols.includes('role')) {
+        await pool.query("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'");
+        console.log('✅ Added role column to users table');
+      }
+    } catch (err) {
+      // Non-fatal: log and continue
+      console.warn('Could not ensure role column exists:', err);
+    }
   } catch (error) {
     console.error('❌ Error creating tables:', error);
     process.exit(1);
   }
 }
 
-createTables();
-process.exit(0);
+createTables()
+  .then(() => pool.end())
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

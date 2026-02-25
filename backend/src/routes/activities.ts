@@ -7,7 +7,7 @@ const router = express.Router();
 // Get all activities (public)
 router.get('/', async (req: AuthRequest, res) => {
   try {
-    const result = pool.query(`
+    const result = await pool.query(`
       SELECT a.*, u.username as created_by_username, u.first_name, u.last_name, u.email, u.project as creator_project
       FROM activities a
       JOIN users u ON a.created_by_id = u.id
@@ -18,6 +18,7 @@ router.get('/', async (req: AuthRequest, res) => {
       id: row.id,
       name: row.name,
       date: row.date,
+      endDate: row.end_date,
       originalDate: row.original_date,
       time: row.time,
       endTime: row.end_time,
@@ -55,7 +56,7 @@ router.get('/', async (req: AuthRequest, res) => {
 router.post('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const {
-      name, date, time, endTime, location, venue, sector, project, description,
+      name, date, endDate, time, endTime, location, venue, sector, project, description,
       participants, facilitator, priority, partnerInstitution, mode, platform,
       venueAddress
     } = req.body;
@@ -65,20 +66,20 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const result = pool.query(
+    const result = await pool.query(
       `INSERT INTO activities (
-        name, date, time, end_time, location, venue, sector, project, description,
+        name, date, end_date, time, end_time, location, venue, sector, project, description,
         participants, facilitator, status, created_by_id, priority, partner_institution,
         mode, platform, venue_address
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, date, time, endTime, location, venue, sector, project, description,
+      [name, date, endDate || null, time, endTime, location, venue, sector, project, description,
        participants, facilitator, 'Scheduled', req.user!.id, priority, partnerInstitution,
        mode, platform, venueAddress]
     );
 
     // Get the inserted activity
     const resultRow = (result.rows[0] as any);
-    const insertedResult = pool.query(
+    const insertedResult = await pool.query(
       'SELECT * FROM activities WHERE rowid = ?',
       [resultRow?.id || 0]
     );
@@ -121,12 +122,27 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
     const { id } = req.params;
     const updates = req.body;
 
+    // Map camelCase keys to snake_case for database columns
+    const fieldMap: {[key: string]: string} = {
+      'endDate': 'end_date',
+      'endTime': 'end_time',
+      'originalDate': 'original_date',
+      'venueAddress': 'venue_address',
+      'partnerInstitution': 'partner_institution',
+      'changeReason': 'change_reason',
+      'changeDate': 'change_date',
+      'createdBy': 'created_by_id',
+      'timeStart': 'time',
+      'timeEnd': 'end_time'
+    };
+
     const fields: string[] = [];
     const values: any[] = [];
 
     Object.keys(updates).forEach(key => {
       if (updates[key] !== undefined) {
-        fields.push(`${key} = ?`);
+        const dbColumn = fieldMap[key] || key;
+        fields.push(`${dbColumn} = ?`);
         values.push(updates[key]);
       }
     });
@@ -138,7 +154,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
     values.push(id);
     const query = `UPDATE activities SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
 
-    const result = pool.query(query, values);
+    const result = await pool.query(query, values);
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
@@ -154,7 +170,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
 router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const result = pool.query('DELETE FROM activities WHERE id = ?', [id]);
+    const result = await pool.query('DELETE FROM activities WHERE id = ?', [id]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Activity not found' });

@@ -1,11 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
-import { Search, Download } from "lucide-react";
+import { Search, Download, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "../ui/alert-dialog";
 
 interface ActivityLog {
   id: number;
@@ -18,63 +30,95 @@ interface ActivityLog {
   ip?: string;
 }
 
+const LOG_STORAGE_KEY = "activity_logs";
+
+// Default sample logs (used only when no stored logs exist)
+const DEFAULT_LOGS: ActivityLog[] = [
+  {
+    id: 1,
+    timestamp: "2025-02-18 14:32:15",
+    user: "john_doe",
+    action: "Created Activity",
+    target: "test FOR test",
+    details: "New activity created for IIDB project",
+    status: "success",
+    ip: "192.168.1.100",
+  },
+  {
+    id: 2,
+    timestamp: "2025-02-18 13:45:22",
+    user: "jane_smith",
+    action: "Updated Activity",
+    target: "Monthly Training Session",
+    details: "Changed status to Ongoing",
+    status: "success",
+    ip: "192.168.1.101",
+  },
+  {
+    id: 3,
+    timestamp: "2025-02-18 12:10:05",
+    user: "mark_johnson",
+    action: "Login",
+    target: "System",
+    details: "User logged into the system",
+    status: "success",
+    ip: "192.168.1.102",
+  },
+  {
+    id: 4,
+    timestamp: "2025-02-18 11:25:33",
+    user: "sarah_williams",
+    action: "Submitted Files",
+    target: "test FOR test",
+    details: "Uploaded Attendance and TODA files",
+    status: "success",
+    ip: "192.168.1.103",
+  },
+  {
+    id: 5,
+    timestamp: "2025-02-18 10:15:48",
+    user: "john_doe",
+    action: "Login Failed",
+    target: "System",
+    details: "Invalid credentials provided",
+    status: "error",
+    ip: "192.168.1.104",
+  },
+];
+
+function loadLogs(): ActivityLog[] {
+  try {
+    const stored = localStorage.getItem(LOG_STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error("Failed to load activity logs from localStorage:", e);
+  }
+  return DEFAULT_LOGS;
+}
+
+function saveLogs(logs: ActivityLog[]) {
+  try {
+    localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(logs));
+  } catch (e) {
+    console.error("Failed to save activity logs to localStorage:", e);
+    toast.error("Failed to save logs. Please try again.");
+  }
+}
+
 export function ActivityLogsViewer() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  const [logs] = useState<ActivityLog[]>([
-    {
-      id: 1,
-      timestamp: "2025-02-18 14:32:15",
-      user: "john_doe",
-      action: "Created Activity",
-      target: "test FOR test",
-      details: "New activity created for IIDB project",
-      status: "success",
-      ip: "192.168.1.100"
-    },
-    {
-      id: 2,
-      timestamp: "2025-02-18 13:45:22",
-      user: "jane_smith",
-      action: "Updated Activity",
-      target: "Monthly Training Session",
-      details: "Changed status to Ongoing",
-      status: "success",
-      ip: "192.168.1.101"
-    },
-    {
-      id: 3,
-      timestamp: "2025-02-18 12:10:05",
-      user: "mark_johnson",
-      action: "Login",
-      target: "System",
-      details: "User logged into the system",
-      status: "success",
-      ip: "192.168.1.102"
-    },
-    {
-      id: 4,
-      timestamp: "2025-02-18 11:25:33",
-      user: "sarah_williams",
-      action: "Submitted Files",
-      target: "test FOR test",
-      details: "Uploaded Attendance and TODA files",
-      status: "success",
-      ip: "192.168.1.103"
-    },
-    {
-      id: 5,
-      timestamp: "2025-02-18 10:15:48",
-      user: "john_doe",
-      action: "Login Failed",
-      target: "System",
-      details: "Invalid credentials provided",
-      status: "error",
-      ip: "192.168.1.104"
-    }
-  ]);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
+
+  // Load logs from localStorage on mount
+  useEffect(() => {
+    const loadedLogs = loadLogs();
+    setLogs(loadedLogs);
+  }, []);
 
   const filteredLogs = logs.filter(log => {
     const matchesSearch = log.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -121,6 +165,16 @@ export function ActivityLogsViewer() {
     a.href = url;
     a.download = `activity-logs-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    toast.success("Activity logs exported successfully");
+  };
+
+  const handleClearLogs = () => {
+    setLogs([]);
+    saveLogs([]);
+    setSearchQuery("");
+    setFilterType("all");
+    setFilterStatus("all");
+    toast.success("All activity logs have been cleared");
   };
 
   return (
@@ -130,7 +184,7 @@ export function ActivityLogsViewer() {
           <CardTitle>Activity Log Filters</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">Search</label>
               <div className="relative">
@@ -175,13 +229,35 @@ export function ActivityLogsViewer() {
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="flex items-end">
-              <Button onClick={handleExport} variant="outline" className="w-full gap-2">
-                <Download className="h-4 w-4" />
-                Export CSV
-              </Button>
-            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-2">
+            <Button onClick={handleExport} variant="outline" className="gap-2">
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Clear Logs
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Clear All Activity Logs?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete all {logs.length} activity log entries.
+                    {filteredLogs.length !== logs.length && ` (${filteredLogs.length} currently visible)`}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearLogs} className="bg-red-600 hover:bg-red-700">
+                    Clear All Logs
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </CardContent>
       </Card>

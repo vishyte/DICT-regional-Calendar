@@ -70,16 +70,85 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Check if user is already logged in
     const token = localStorage.getItem('auth_token');
+    const isSuperadmin = localStorage.getItem('is_superadmin');
+    
     if (token) {
-      // Try to get user profile from backend first
-      authAPI.getProfile()
-        .then((response: any) => {
-          setUser(response.data);
-        })
-        .catch(() => {
+      // Check if it's a local user token
+      if (token.startsWith('local_')) {
+        // Restore local user from localStorage
+        const localUserStr = localStorage.getItem('current_local_user');
+        if (localUserStr) {
+          try {
+            const localUser = JSON.parse(localUserStr);
+            const userData = {
+              id: localUser.id,
+              username: localUser.username,
+              fullName: `${localUser.first_name} ${localUser.middle_name ? localUser.middle_name + ' ' : ''}${localUser.last_name}`,
+              firstName: localUser.first_name,
+              middleName: localUser.middle_name,
+              lastName: localUser.last_name,
+              idNumber: localUser.username,
+              email: localUser.email,
+              project: localUser.project
+            };
+            setUser(userData);
+            setLoading(false);
+            return;
+          } catch (e) {
+            console.error('Failed to parse local user:', e);
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('current_local_user');
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Token exists but no local user data - might be stale, clear it
           localStorage.removeItem('auth_token');
-        })
-        .finally(() => setLoading(false));
+          setLoading(false);
+          return;
+        }
+      } else if (isSuperadmin === 'true') {
+        // This is a superadmin token, don't validate as user
+        // Let App.tsx handle superadmin restoration
+        setLoading(false);
+        return;
+      } else {
+        // Check if it's a base64 encoded superadmin token
+        try {
+          const decoded = JSON.parse(atob(token));
+          if (decoded.local && decoded.role === 'superadmin') {
+            // This is a local superadmin token, don't set user here
+            // It will be handled in App.tsx
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          // Not a base64 token, continue to backend check
+        }
+
+        // Try to get user profile from backend
+        authAPI.getProfile()
+          .then((response: any) => {
+            setUser(response.data);
+            setLoading(false);
+          })
+          .catch((error) => {
+            // If backend fails, don't immediately clear the token
+            // It might be a network issue or backend is down
+            // Only clear if it's a 401 (unauthorized) error
+            if (error.response?.status === 401) {
+              console.log('Token invalid, clearing auth');
+              localStorage.removeItem('auth_token');
+              localStorage.removeItem('is_superadmin');
+              localStorage.removeItem('current_local_user');
+            } else {
+              // Network error or backend down - keep token but don't set user
+              // User will need to refresh when backend is back
+              console.log('Backend unavailable, keeping token for retry');
+            }
+            setLoading(false);
+          });
+      }
     } else {
       setLoading(false);
     }
@@ -214,6 +283,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('is_superadmin');
+    localStorage.removeItem('current_local_user');
   };
 
   return (

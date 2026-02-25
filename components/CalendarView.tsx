@@ -10,7 +10,7 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Alert, AlertDescription } from "./ui/alert";
-import { ChevronLeft, ChevronRight, Calendar, CalendarPlus, MapPin, FileText, Clock, Users, Edit, Eye, UserCheck, AlertCircle, CheckCircle, X, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, CalendarPlus, MapPin, FileText, Clock, Users, Edit, Eye, UserCheck, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { formatTimeDisplay } from "./utils/timeFormat";
 import { deriveDisplayStatus } from "./utils/status";
@@ -38,12 +38,10 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   const [changeStatus, setChangeStatus] = useState("");
   const [changeReason, setChangeReason] = useState("");
   const [editTitle, setEditTitle] = useState("");
-  const [editDescription, setEditDescription] = useState("");
   const [editVenue, setEditVenue] = useState("");
   const [editPartnerInstitution, setEditPartnerInstitution] = useState("");
   const [editFinalPax, setEditFinalPax] = useState<string>("");
   const [editAssignedPersonnel, setEditAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task: string }>>([]);
-  const [editDocuments, setEditDocuments] = useState<Array<{ id: number; name: string; url: string; uploadDate: string }>>([]);
   // activities come from context now
 
   // Live clock
@@ -100,36 +98,15 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     setChangeStatus("");
     setChangeReason("");
     setEditTitle(activity.name || "");
-    setEditDescription(activity.description || "");
     setEditVenue(activity.venue || "");
     setEditPartnerInstitution(activity.partnerInstitution || "");
     setEditFinalPax(activity.participants?.toString() || "");
     setEditAssignedPersonnel(activity.assignedPersonnel || []);
-    setEditDocuments(activity.documents || []);
     setViewDialogOpen(false);
     setEditDialogOpen(true);
   };
 
-  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
 
-    Array.from(files).forEach(file => {
-      const fileId = Date.now() + Math.random();
-      const fileUrl = URL.createObjectURL(file);
-      setEditDocuments(prev => [...prev, {
-        id: fileId,
-        name: file.name,
-        url: fileUrl,
-        uploadDate: new Date().toISOString(),
-      }]);
-    });
-    toast.success("Document(s) uploaded");
-  };
-
-  const handleRemoveDocument = (docId: number) => {
-    setEditDocuments(prev => prev.filter(doc => doc.id !== docId));
-  };
 
   const handleUpdatePersonnelTask = (idNumber: string, task: string) => {
     setEditAssignedPersonnel(prev => prev.map(p => 
@@ -153,12 +130,10 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     const updatedActivity: Activity = { 
       ...editingActivity,
       name: editTitle,
-      description: editDescription,
       venue: editVenue,
       partnerInstitution: editPartnerInstitution,
       participants: editFinalPax ? parseInt(editFinalPax, 10) : undefined,
       assignedPersonnel: editAssignedPersonnel.length > 0 ? editAssignedPersonnel : undefined,
-      documents: editDocuments.length > 0 ? editDocuments : undefined,
     };
     
     // If date changed
@@ -772,9 +747,9 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
           {editingActivity && (
             <div className="space-y-6 py-4">
               {/* Date/Time (Read-only) */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
                 <div>
-                  <Label className="text-gray-600">Date</Label>
+                  <Label className="text-gray-600">Start Date</Label>
                   <p className="text-gray-900 font-medium">
                     {new Date(editingActivity.date).toLocaleDateString("en-US", {
                       month: "long",
@@ -789,7 +764,24 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     {formatTimeDisplay(editingActivity.time)} - {formatTimeDisplay(editingActivity.endTime)}
                   </p>
                 </div>
-                <p className="text-xs text-gray-500 col-span-2">Date and time cannot be edited directly</p>
+                <div>
+                  <Label className="text-gray-600">End Date</Label>
+                  <p className="text-gray-900 font-medium">
+                    {editingActivity.endDate
+                      ? new Date(editingActivity.endDate).toLocaleDateString("en-US", {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric"
+                        })
+                      : new Date(editingActivity.date).toLocaleDateString("en-US", {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric"
+                        })
+                    }
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 col-span-3">Date and time cannot be edited directly</p>
               </div>
 
               {/* Title */}
@@ -804,17 +796,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                 />
               </div>
 
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="edit-description">Description</Label>
-                <Textarea
-                  id="edit-description"
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                  placeholder="Enter activity description"
-                  rows={4}
-                />
-              </div>
+
 
               {/* Venue */}
               <div className="space-y-2">
@@ -874,50 +856,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                 </div>
               )}
 
-              {/* Documents */}
-              <div className="space-y-2">
-                <Label>Documents</Label>
-                <div className="space-y-2">
-                  {editDocuments.length > 0 && (
-                    <div className="space-y-2 mb-2">
-                      {editDocuments.map((doc) => (
-                        <div key={doc.id} className="flex items-center justify-between p-2 border border-gray-200 rounded-md bg-gray-50">
-                          <div className="flex items-center gap-2 flex-1">
-                            <FileText className="h-4 w-4 text-gray-400" />
-                            <a href={doc.url} download={doc.name} className="text-sm text-blue-600 hover:underline truncate">
-                              {doc.name}
-                            </a>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveDocument(doc.id)}
-                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="relative">
-                    <Input
-                      type="file"
-                      multiple
-                      onChange={handleDocumentUpload}
-                      className="hidden"
-                      id="document-upload"
-                    />
-                    <Label htmlFor="document-upload" className="cursor-pointer">
-                      <div className="flex items-center gap-2 p-3 border-2 border-dashed border-gray-300 rounded-md hover:border-blue-500 transition-colors">
-                        <Upload className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-600">Upload documents</span>
-                      </div>
-                    </Label>
-                  </div>
-                </div>
-              </div>
+
 
               {/* Status Change Section */}
               <Separator />

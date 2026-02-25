@@ -1,0 +1,39 @@
+services:
+  # Backend API Service
+  - name: dict-regional-calendar-backend
+    type: web
+    region: oregon
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    envVars:
+      - key: PORT
+        value: "3000"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        value: https://dict-calendar-frontend.onrender.com
+      - key: SUPERADMIN_USERNAME
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+    postgres:
+      name: dict-calendar-db
+      region: oregon
+      plan: free
+
+  # Frontend Static Site
+  - name: dict-calendar-frontend
+    type: static
+    region: oregon
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://dict-calendar-backend.onrender.com

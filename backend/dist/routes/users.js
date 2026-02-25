@@ -56,6 +56,9 @@ router.post('/register', async (req, res) => {
         // Fetch inserted user
         const userResult = database_1.default.query('SELECT id, username, email, first_name, middle_name, last_name, project FROM users WHERE username = ?', [username]);
         const user = userResult.rows[0];
+        if (!user) {
+            return res.status(500).json({ error: 'User registration completed but failed to retrieve user data' });
+        }
         res.status(201).json({ message: 'User registered successfully', user });
     }
     catch (error) {
@@ -66,6 +69,19 @@ router.post('/register', async (req, res) => {
             message: error.message,
             detail: error.detail
         });
+        // Determine error type
+        let errorMessage = 'Registration failed. Please try again.';
+        if (error.message?.includes('UNIQUE constraint failed')) {
+            if (error.message?.includes('username')) {
+                errorMessage = 'Username already exists';
+            }
+            else if (error.message?.includes('email')) {
+                errorMessage = 'Email already registered';
+            }
+        }
+        else if (error.message?.includes('NOT NULL constraint failed')) {
+            errorMessage = 'Missing required information';
+        }
         // Backup registration data if database fails
         const backupData = {
             username: req.body.username,
@@ -77,7 +93,7 @@ router.post('/register', async (req, res) => {
         };
         const backedUpSuccessfully = await saveRegistrationBackup(backupData);
         res.status(500).json({
-            error: 'Internal server error',
+            error: errorMessage,
             message: backedUpSuccessfully
                 ? 'Registration data has been saved. Please try again later.'
                 : 'Registration failed. Please contact support.',
@@ -98,7 +114,8 @@ router.post('/login', async (req, res) => {
         if (!isValidPassword) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
-        const token = jsonwebtoken_1.default.sign({ id: user.id, username: user.username, email: user.email }, process.env.JWT_SECRET, { expiresIn: '24h' });
+        const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+        const token = jsonwebtoken_1.default.sign({ id: user.id, username: user.username, email: user.email }, jwtSecret, { expiresIn: '24h' });
         res.json({
             token,
             user: {
@@ -227,6 +244,217 @@ router.get('/backup-status', async (req, res) => {
     catch (error) {
         console.error('Backup status error:', error);
         res.status(500).json({ error: 'Failed to get backup status' });
+    }
+});
+// Superadmin login
+router.post('/superadmin/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        // Validate superadmin credentials
+        // TODO: Move these to environment variables or database for production
+        const SUPERADMIN_USERNAME = process.env.SUPERADMIN_USERNAME || 'superadmin';
+        const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'admin123';
+        if (username !== SUPERADMIN_USERNAME || password !== SUPERADMIN_PASSWORD) {
+            return res.status(401).json({ error: 'Invalid superadmin credentials' });
+        }
+        // Create a token for superadmin
+        const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+        const token = jsonwebtoken_1.default.sign({ id: 0, username: 'superadmin', email: 'superadmin@dict.gov.ph', role: 'superadmin' }, jwtSecret, { expiresIn: '24h' });
+        res.json({
+            token,
+            user: {
+                id: 0,
+                username: 'superadmin',
+                email: 'superadmin@dict.gov.ph',
+                role: 'superadmin'
+            }
+        });
+    }
+    catch (error) {
+        console.error('Superadmin login error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+// Superadmin endpoints for user management
+// Get all users (for superadmin)
+router.get('/all', middleware_1.authenticateToken, async (req, res) => {
+    try {
+        const result = database_1.default.query(`SELECT id, username, email, first_name, middle_name, last_name, project, created_at 
+       FROM users 
+       ORDER BY created_at DESC`);
+        const users = result.rows.map((user) => ({
+            id: user.id,
+            username: user.username,
+            fullName: `${user.first_name} ${user.middle_name ? user.middle_name + ' ' : ''}${user.last_name}`,
+            email: user.email,
+            project: user.project,
+            role: 'user', // Default role, can be extended later
+            createdAt: user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            status: 'active'
+        }));
+        res.json(users);
+    }
+    catch (error) {
+        console.error('Get all users error:', error);
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+// Create user (for superadmin)
+router.post('/', middleware_1.authenticateToken, async (req, res) => {
+    try {
+        const { username, email, password, fullName, project, role } = req.body;
+        // Validate required fields
+        if (!username || !email || !password || !fullName || !project) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        // Parse full name
+        const nameParts = fullName.trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : null;
+        const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+        if (!firstName || !lastName) {
+            return res.status(400).json({ error: 'Full name must include at least first and last name' });
+        }
+        // Check if user exists
+        const existingUser = database_1.default.query('SELECT id FROM users WHERE username = ? OR email = ?', [username, email]);
+        if (existingUser.rows.length > 0) {
+            return res.status(400).json({ error: 'Username or email already exists' });
+        }
+        // Hash password
+        const passwordHash = await bcryptjs_1.default.hash(password, 10);
+        // Insert user
+        database_1.default.query(`INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`, [username, email, passwordHash, firstName, middleName || null, lastName, project]);
+        // Fetch inserted user
+        const userResult = database_1.default.query('SELECT id, username, email, first_name, middle_name, last_name, project, created_at FROM users WHERE username = ?', [username]);
+        const user = userResult.rows[0];
+        if (!user) {
+            return res.status(500).json({ error: 'User creation completed but failed to retrieve user data' });
+        }
+        res.status(201).json({
+            id: user.id,
+            username: user.username,
+            fullName: `${user.first_name} ${user.middle_name ? user.middle_name + ' ' : ''}${user.last_name}`,
+            email: user.email,
+            project: user.project,
+            role: role || 'user',
+            createdAt: user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            status: 'active'
+        });
+    }
+    catch (error) {
+        console.error('Create user error:', error);
+        let errorMessage = 'Failed to create user';
+        if (error.message?.includes('UNIQUE constraint failed')) {
+            errorMessage = 'Username or email already exists';
+        }
+        res.status(500).json({ error: errorMessage });
+    }
+});
+// Update user (for superadmin)
+router.put('/:id', middleware_1.authenticateToken, async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        const { username, email, fullName, project, role, password } = req.body;
+        // Check if user exists
+        const existingUser = database_1.default.query('SELECT id FROM users WHERE id = ?', [userId]);
+        if (existingUser.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        // Parse full name if provided
+        let firstName, middleName, lastName;
+        if (fullName) {
+            const nameParts = fullName.trim().split(/\s+/);
+            firstName = nameParts[0] || '';
+            middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : null;
+            lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+        }
+        // Build update query dynamically
+        const updates = [];
+        const params = [];
+        if (username) {
+            // Check if username is already taken by another user
+            const usernameCheck = database_1.default.query('SELECT id FROM users WHERE username = ? AND id != ?', [username, userId]);
+            if (usernameCheck.rows.length > 0) {
+                return res.status(400).json({ error: 'Username already taken' });
+            }
+            updates.push('username = ?');
+            params.push(username);
+        }
+        if (email) {
+            // Check if email is already taken by another user
+            const emailCheck = database_1.default.query('SELECT id FROM users WHERE email = ? AND id != ?', [email, userId]);
+            if (emailCheck.rows.length > 0) {
+                return res.status(400).json({ error: 'Email already taken' });
+            }
+            updates.push('email = ?');
+            params.push(email);
+        }
+        if (firstName) {
+            updates.push('first_name = ?');
+            params.push(firstName);
+        }
+        if (middleName !== undefined) {
+            updates.push('middle_name = ?');
+            params.push(middleName);
+        }
+        if (lastName) {
+            updates.push('last_name = ?');
+            params.push(lastName);
+        }
+        if (project) {
+            updates.push('project = ?');
+            params.push(project);
+        }
+        if (password) {
+            const passwordHash = await bcryptjs_1.default.hash(password, 10);
+            updates.push('password_hash = ?');
+            params.push(passwordHash);
+        }
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'No fields to update' });
+        }
+        updates.push('updated_at = CURRENT_TIMESTAMP');
+        params.push(userId);
+        database_1.default.query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+        // Fetch updated user
+        const userResult = database_1.default.query('SELECT id, username, email, first_name, middle_name, last_name, project, created_at FROM users WHERE id = ?', [userId]);
+        const user = userResult.rows[0];
+        if (!user) {
+            return res.status(404).json({ error: 'User not found after update' });
+        }
+        res.json({
+            id: user.id,
+            username: user.username,
+            fullName: `${user.first_name} ${user.middle_name ? user.middle_name + ' ' : ''}${user.last_name}`,
+            email: user.email,
+            project: user.project,
+            role: role || 'user',
+            createdAt: user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            status: 'active'
+        });
+    }
+    catch (error) {
+        console.error('Update user error:', error);
+        res.status(500).json({ error: 'Failed to update user' });
+    }
+});
+// Delete user (for superadmin)
+router.delete('/:id', middleware_1.authenticateToken, async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        // Check if user exists
+        const existingUser = database_1.default.query('SELECT id FROM users WHERE id = ?', [userId]);
+        if (existingUser.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        // Delete user
+        database_1.default.query('DELETE FROM users WHERE id = ?', [userId]);
+        res.json({ message: 'User deleted successfully' });
+    }
+    catch (error) {
+        console.error('Delete user error:', error);
+        res.status(500).json({ error: 'Failed to delete user' });
     }
 });
 exports.default = router;

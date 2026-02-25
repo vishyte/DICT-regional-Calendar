@@ -1,0 +1,11 @@
+[00:00:02.108] Server  LOG     ✓ Ready in 1475ms
+[00:00:19.606] Browser WARN    Image with src "http://localhost:3000/vercel.svg" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[00:00:19.606] Browser WARN    Image with src "http://localhost:3000/mongodb.svg" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[00:00:37.599] Server  WARN    ⚠ Cross origin request detected from 192.168.123.48 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+[00:00:37.880] Browser WARN    Image with src "http://192.168.123.48:3000/vercel.svg" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[00:00:37.880] Browser WARN    Image with src "http://192.168.123.48:3000/mongodb.svg" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[00:31:09.772] Server  ERROR   Error: ENOENT: no such file or directory, scandir 'C:\Users\DICT-V\Desktop\DICT-REGIONAL CALENDER\DICT-regional-Calendar\my-mongodb-app\pages'
+[00:31:09.792] Server  ERROR   ⨯ "unhandledRejection:" Error: ENOENT: no such file or directory, scandir 'C:\Users\DICT-V\Desktop\DICT-REGIONAL CALENDER\DICT-regional-Calendar\my-mongodb-app\pages'
+[00:31:09.808] Server  ERROR   ⨯ "unhandledRejection: " Error: ENOENT: no such file or directory, scandir 'C:\Users\DICT-V\Desktop\DICT-REGIONAL CALENDER\DICT-regional-Calendar\my-mongodb-app\pages'
+[00:31:09.819] Server  LOG     ✓ Compiled in 1843ms

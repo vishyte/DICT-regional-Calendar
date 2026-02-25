@@ -1,0 +1,37 @@
+globalThis.__BUILD_MANIFEST = {
+  "pages": {
+    "/": [
+      "static/chunks/f2624_next_dist_compiled_07da23d8._.js",
+      "static/chunks/f2624_next_dist_shared_lib_3c28d91f._.js",
+      "static/chunks/f2624_next_dist_client_fc4841fe._.js",
+      "static/chunks/f2624_next_dist_5a534681._.js",
+      "static/chunks/f2624_next_8f7aedac._.js",
+      "static/chunks/f2624_react-dom_6bcf89bf._.js",
+      "static/chunks/f2624_6983df23._.js",
+      "static/chunks/[root-of-the-server]__e3738ce6._.js",
+      "static/chunks/[next]_internal_font_google_inter_34fc90a6_module_014efa77.css",
+      "static/chunks/my-mongodb-app_pages_index_2da965e7._.js",
+      "static/chunks/turbopack-my-mongodb-app_pages_index_68977d55._.js"
+    ],
+    "/_app": [
+      "static/chunks/f2624_next_dist_compiled_17a397c7._.js",
+      "static/chunks/f2624_next_dist_shared_lib_5379aa03._.js",
+      "static/chunks/f2624_next_dist_client_04c7ca14._.js",
+      "static/chunks/f2624_next_dist_5a534681._.js",
+      "static/chunks/f2624_react-dom_6bcf89bf._.js",
+      "static/chunks/f2624_6983df23._.js",
+      "static/chunks/[root-of-the-server]__4fa4342a._.js",
+      "static/chunks/my-mongodb-app_styles_globals_cc5ba102.css",
+      "static/chunks/my-mongodb-app_pages__app_2da965e7._.js",
+      "static/chunks/turbopack-my-mongodb-app_pages__app_7b7eeaf5._.js"
+    ]
+  },
+  "devFiles": [],
+  "polyfillFiles": [],
+  "lowPriorityFiles": [],
+  "rootMainFiles": []
+};
+globalThis.__BUILD_MANIFEST.lowPriorityFiles = [
+"/static/" + process.env.__NEXT_BUILD_ID + "/_buildManifest.js",
+"/static/" + process.env.__NEXT_BUILD_ID + "/_ssgManifest.js"
+];

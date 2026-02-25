@@ -1,9 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  base: "/DICT-regional-Calendar/", // ✅ important for GitHub Pages
-});
+  // Use relative base for production so assets work on Hosting (not only GH pages)
+  base: mode === 'production' ? "./" : "/",
+}));
 
 

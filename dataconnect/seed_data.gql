@@ -1,0 +1,124 @@
+mutation CreateDemoData @transaction @auth(level: USER, insecureReason: "This operation is for seeding data and does not expose user-specific information.") {
+  user_insertMany(data: [
+    {
+      id: "b2d2f78e-6c8f-40b5-9a1d-7f0e3c5b9a8d",
+      displayName: "Alice Smith",
+      email: "alice.smith@example.com",
+      createdAt: "2023-01-15T10:00:00Z",
+      bio: "Software Engineer with a passion for open source."
+    },
+    {
+      id: "c8e1a9b0-3d2e-4f5a-8b7c-1e6f0d9c2a3b",
+      displayName: "Bob Johnson",
+      email: "bob.johnson@example.com",
+      createdAt: "2023-02-20T11:30:00Z",
+      bio: "Project Manager, always striving for efficiency."
+    },
+    {
+      id: "d4f3e2a1-5c6d-7b8e-9f0a-2b1c3d4e5f6a",
+      displayName: "Charlie Brown",
+      email: "charlie.brown@example.com",
+      createdAt: "2023-03-01T09:00:00Z",
+      bio: "UI/UX Designer, focused on user-centric designs."
+    }
+  ])
+  project_insertMany(data: [
+    {
+      id: "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      name: "Firebase Data Connect Launch",
+      description: "Launch project for Firebase Data Connect.",
+      dueDate: "2023-12-31",
+      createdAt: "2023-01-01T08:00:00Z",
+      owner: { id: "b2d2f78e-6c8f-40b5-9a1d-7f0e3c5b9a8d" }
+    },
+    {
+      id: "f0e9d8c7-b6a5-4321-9876-54321fedcba0",
+      name: "New Feature Development",
+      description: "Develop new features for the app.",
+      dueDate: "2024-06-30",
+      createdAt: "2023-03-10T14:00:00Z",
+      owner: { id: "c8e1a9b0-3d2e-4f5a-8b7c-1e6f0d9c2a3b" }
+    }
+  ])
+  projectMembership_insertMany(data: [
+    {
+      user: { id: "b2d2f78e-6c8f-40b5-9a1d-7f0e3c5b9a8d" },
+      project: { id: "a1b2c3d4-e5f6-7890-1234-567890abcdef" },
+      role: "Owner",
+      joinedAt: "2023-01-01T08:00:00Z"
+    },
+    {
+      user: { id: "c8e1a9b0-3d2e-4f5a-8b7c-1e6f0d9c2a3b" },
+      project: { id: "a1b2c3d4-e5f6-7890-1234-567890abcdef" },
+      role: "Member",
+      joinedAt: "2023-01-05T09:00:00Z"
+    },
+    {
+      user: { id: "d4f3e2a1-5c6d-7b8e-9f0a-2b1c3d4e5f6a" },
+      project: { id: "a1b2c3d4-e5f6-7890-1234-567890abcdef" },
+      role: "Member",
+      joinedAt: "2023-01-10T10:00:00Z"
+    },
+    {
+      user: { id: "c8e1a9b0-3d2e-4f5a-8b7c-1e6f0d9c2a3b" },
+      project: { id: "f0e9d8c7-b6a5-4321-9876-54321fedcba0" },
+      role: "Owner",
+      joinedAt: "2023-03-10T14:00:00Z"
+    },
+    {
+      user: { id: "b2d2f78e-6c8f-40b5-9a1d-7f0e3c5b9a8d" },
+      project: { id: "f0e9d8c7-b6a5-4321-9876-54321fedcba0" },
+      role: "Member",
+      joinedAt: "2023-03-12T15:00:00Z"
+    }
+  ])
+  task_insertMany(data: [
+    {
+      id: "e9f8d7c6-a5b4-3210-fedc-ba9876543210",
+      title: "Define Project Scope",
+      description: "Clearly outline the boundaries and objectives of the project.",
+      status: "Completed",
+      dueDate: "2023-01-20",
+      priority: "High",
+      createdAt: "2023-01-02T09:00:00Z",
+      project: { id: "a1b2c3d4-e5f6-7890-1234-567890abcdef" },
+      assignee: { id: "b2d2f78e-6c8f-40b5-9a1d-7f0e3c5b9a8d" }
+    },
+    {
+      id: "1a2b3c4d-5e6f-7890-abcd-ef0123456789",
+      title: "Set up Development Environment",
+      description: "Install all necessary tools and configure the development environment.",
+      status: "In Progress",
+      dueDate: "2023-03-25",
+      priority: "High",
+      createdAt: "2023-03-11T10:00:00Z",
+      project: { id: "f0e9d8c7-b6a5-4321-9876-54321fedcba0" },
+      assignee: { id: "c8e1a9b0-3d2e-4f5a-8b7c-1e6f0d9c2a3b" }
+    },
+    {
+      id: "fedcba98-7654-3210-fedc-ba9876543210",
+      title: "Design User Interface",
+      description: "Create wireframes and mockups for the application's UI.",
+      status: "To Do",
+      dueDate: "2023-04-15",
+      priority: "Medium",
+      createdAt: "2023-03-15T13:00:00Z",
+      project: { id: "f0e9d8c7-b6a5-4321-9876-54321fedcba0" },
+      assignee: { id: "d4f3e2a1-5c6d-7b8e-9f0a-2b1c3d4e5f6a" }
+    }
+  ])
+  comment_insertMany(data: [
+    {
+      content: "Great start on the project scope!",
+      createdAt: "2023-01-21T11:00:00Z",
+      user: { id: "b2d2f78e-6c8f-40b5-9a1d-7f0e3c5b9a8d" },
+      task: { id: "e9f8d7c6-a5b4-3210-fedc-ba9876543210" }
+    },
+    {
+      content: "I'll get the development environment ready by tomorrow.",
+      createdAt: "2023-03-11T14:00:00Z",
+      user: { id: "c8e1a9b0-3d2e-4f5a-8b7c-1e6f0d9c2a3b" },
+      task: { id: "1a2b3c4d-5e6f-7890-abcd-ef0123456789" }
+    }
+  ])
+}

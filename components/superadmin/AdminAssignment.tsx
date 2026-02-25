@@ -1,11 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Badge } from "../ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "../ui/alert";
+import { toast } from "sonner";
+import { usersAPI } from "../../utils/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "../ui/alert-dialog";
 
 interface ProjectAdmin {
   projectName: string;
@@ -30,77 +43,168 @@ const PROJECTS = [
   "Technical Operations Division"
 ];
 
-const ADMINS = [
-  { id: 1, name: "John Doe", email: "john@dict.gov.ph" },
-  { id: 2, name: "Jane Smith", email: "jane@dict.gov.ph" },
-  { id: 3, name: "Mark Johnson", email: "mark@dict.gov.ph" },
-  { id: 4, name: "Sarah Williams", email: "sarah@dict.gov.ph" }
-];
+// Get registered users from localStorage
+function getRegisteredAdmins() {
+  try {
+    const usersJson = localStorage.getItem('local_users');
+    if (usersJson) {
+      const users = JSON.parse(usersJson);
+      return users.map((user: any, index: number) => ({
+        id: user.id || index + 1,
+        name: `${user.first_name}${user.middle_name ? ' ' + user.middle_name : ''} ${user.last_name}`,
+        email: user.email
+      }));
+    }
+  } catch (e) {
+    console.error('Failed to load registered users:', e);
+  }
+  return [];
+}
+
+const STORAGE_KEY = 'project_admin_assignments';
+
+// Load assignments from localStorage
+function loadAssignments(): ProjectAdmin[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Failed to load assignments from localStorage:', e);
+  }
+  // Return empty array - no default assignments
+  return [];
+}
+
+// Save assignments to localStorage
+function saveAssignments(assignments: ProjectAdmin[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(assignments));
+  } catch (e) {
+    console.error('Failed to save assignments to localStorage:', e);
+    toast.error('Failed to save assignment. Please try again.');
+  }
+}
 
 export function AdminAssignment() {
-  const [assignments, setAssignments] = useState<ProjectAdmin[]>([
-    {
-      projectName: "IIDB",
-      adminName: "John Doe",
-      adminEmail: "john@dict.gov.ph",
-      assignedDate: "2025-01-15",
-      status: "active"
-    },
-    {
-      projectName: "Free Wi-Fi for All",
-      adminName: "Jane Smith",
-      adminEmail: "jane@dict.gov.ph",
-      assignedDate: "2025-01-20",
-      status: "active"
-    }
-  ]);
+  const [assignments, setAssignments] = useState<ProjectAdmin[]>([]);
+  const [admins, setAdmins] = useState<Array<{ id: number; name: string; email: string }>>([]);
+
+  // Load assignments and registered users on mount
+  useEffect(() => {
+    // Load assignments from backend first, fall back to localStorage
+    (async () => {
+      try {
+        const resp = await usersAPI.getAll();
+        const serverUsers = resp.data || [];
+        const mapped = serverUsers.map((u: any) => ({
+          id: u.id,
+          name: u.fullName || u.username,
+          email: u.email || ''
+        }));
+        setAdmins(mapped);
+
+        // Build assignments from server users with admin role
+        const adminAssignments = serverUsers
+          .filter((u: any) => u.role === "admin")
+          .map((u: any) => ({
+            projectName: u.project || "Unassigned",
+            adminName: u.fullName || u.username,
+            adminEmail: u.email || '',
+            assignedDate: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            status: "active" as const
+          }));
+
+        setAssignments(adminAssignments);
+        saveAssignments(adminAssignments);
+      } catch (err) {
+        console.error('Failed to load users from backend:', err);
+        // Fallback to localStorage
+        const registeredAdmins = getRegisteredAdmins();
+        setAdmins(registeredAdmins);
+        const loadedAssignments = loadAssignments();
+        setAssignments(loadedAssignments);
+      }
+    })();
+  }, []);
 
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [selectedAdmin, setSelectedAdmin] = useState<string>("");
 
-  const handleAssignAdmin = () => {
+  const handleAssignAdmin = async () => {
     if (!selectedProject || !selectedAdmin) {
-      alert("Please select both project and admin");
+      toast.error("Please select both project and admin");
       return;
     }
 
-    const admin = ADMINS.find(a => a.id.toString() === selectedAdmin);
-    const existingAssignment = assignments.find(a => a.projectName === selectedProject);
+    const admin = admins.find(a => a.id.toString() === selectedAdmin);
+    if (!admin) {
+      toast.error("Admin not found");
+      return;
+    }
 
-    if (existingAssignment) {
-      setAssignments(
-        assignments.map(a =>
+    try {
+      // Update user role to admin in backend with project assignment
+      await usersAPI.update(parseInt(selectedAdmin), { role: "admin", project: selectedProject });
+
+      const existingAssignment = assignments.find(a => a.projectName === selectedProject);
+      let newAssignments: ProjectAdmin[];
+
+      if (existingAssignment) {
+        newAssignments = assignments.map(a =>
           a.projectName === selectedProject
             ? {
                 ...a,
-                adminName: admin?.name || "",
-                adminEmail: admin?.email || "",
+                adminName: admin.name,
+                adminEmail: admin.email,
                 assignedDate: new Date().toISOString().split('T')[0],
                 status: "active"
               }
             : a
-        )
-      );
-    } else {
-      setAssignments([
-        ...assignments,
-        {
-          projectName: selectedProject,
-          adminName: admin?.name || "",
-          adminEmail: admin?.email || "",
-          assignedDate: new Date().toISOString().split('T')[0],
-          status: "active"
-        }
-      ]);
-    }
+        );
+      } else {
+        newAssignments = [
+          ...assignments,
+          {
+            projectName: selectedProject,
+            adminName: admin.name,
+            adminEmail: admin.email,
+            assignedDate: new Date().toISOString().split('T')[0],
+            status: "active"
+          }
+        ];
+      }
 
-    setSelectedProject("");
-    setSelectedAdmin("");
+      setAssignments(newAssignments);
+      saveAssignments(newAssignments);
+      setSelectedProject("");
+      setSelectedAdmin("");
+      toast.success(`Admin ${admin.name} assigned to ${selectedProject}`);
+    } catch (error) {
+      console.error("Failed to assign admin:", error);
+      toast.error("Failed to assign admin. Please ensure the user exists and try again.");
+    }
   };
 
-  const handleRemoveAssignment = (projectName: string) => {
-    if (confirm(`Remove admin from ${projectName}?`)) {
-      setAssignments(assignments.filter(a => a.projectName !== projectName));
+  const handleRemoveAssignment = async (projectName: string) => {
+    const assignment = assignments.find(a => a.projectName === projectName);
+    if (!assignment) return;
+
+    try {
+      // Find the admin by email and revert their role to user
+      const adminUser = admins.find(a => a.email === assignment.adminEmail);
+      if (adminUser) {
+        await usersAPI.update(adminUser.id, { role: "user" });
+      }
+
+      const newAssignments = assignments.filter(a => a.projectName !== projectName);
+      setAssignments(newAssignments);
+      saveAssignments(newAssignments);
+      toast.success(`Admin ${assignment.adminName} removed from ${projectName}`);
+    } catch (error) {
+      console.error("Failed to remove assignment:", error);
+      toast.error("Failed to remove admin assignment. Please try again.");
     }
   };
 
@@ -144,11 +248,17 @@ export function AdminAssignment() {
                   <SelectValue placeholder="Choose admin..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {ADMINS.map((admin) => (
-                    <SelectItem key={admin.id} value={admin.id.toString()}>
-                      {admin.name}
-                    </SelectItem>
-                  ))}
+                  {admins.length === 0 ? (
+                    <div className="p-2 text-sm text-gray-500">
+                      No registered users found
+                    </div>
+                  ) : (
+                    admins.map((admin) => (
+                      <SelectItem key={admin.id} value={admin.id.toString()}>
+                        {admin.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -199,14 +309,36 @@ export function AdminAssignment() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-red-600 hover:bg-red-50"
-                          onClick={() => handleRemoveAssignment(assignment.projectName)}
-                        >
-                          Remove
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Remove
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove Project Admin?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to remove <strong>{assignment.adminName}</strong> from <strong>{assignment.projectName}</strong>? 
+                                This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction 
+                                onClick={() => handleRemoveAssignment(assignment.projectName)}
+                                className="bg-red-600 hover:bg-red-700"
+                              >
+                                Remove Admin
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </TableCell>
                     </TableRow>
                   ))

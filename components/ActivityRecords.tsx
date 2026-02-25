@@ -952,13 +952,29 @@ export function ActivityRecords() {
                                   </p>
                                 </div>
                                 <div>
-                                  <p className="text-sm text-gray-600">Date</p>
+                                  <p className="text-sm text-gray-600">Start Date</p>
                                   <p className="text-gray-900">
                                     {new Date(activity.date).toLocaleDateString("en-US", {
                                       month: "long",
                                       day: "numeric",
                                       year: "numeric"
                                     })}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-sm text-gray-600">End Date</p>
+                                  <p className="text-gray-900">
+                                    {activity.endDate
+                                      ? new Date(activity.endDate).toLocaleDateString("en-US", {
+                                          month: "long",
+                                          day: "numeric",
+                                          year: "numeric"
+                                        })
+                                      : new Date(activity.date).toLocaleDateString("en-US", {
+                                          month: "long",
+                                          day: "numeric",
+                                          year: "numeric"
+                                        })}
                                   </p>
                                 </div>
                                 <div>
