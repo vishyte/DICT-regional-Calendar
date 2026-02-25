@@ -1,10 +1,10 @@
 import axios, { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 
-// Prefer build-time `VITE_API_URL`. If not set, fall back at runtime to the
-// current origin + /api so the hosted frontend can call the same origin if
-// the backend is proxied or hosted under the same domain. Last fallback is
-// the local dev server.
-const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:3001/api');
+// Railway backend URL (hardcoded for both Firebase and Railway deployments)
+const RAILWAY_BACKEND_URL = 'https://dict-regional-calendar-backend-production-b40c.up.railway.app/api';
+
+// Prefer build-time `VITE_API_URL`. If not set, fall back to Railway backend
+const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || RAILWAY_BACKEND_URL;
 
 console.log('API base URL:', API_BASE_URL);
 
