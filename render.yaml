@@ -6,13 +6,10 @@ services:
     runtime: docker
     dockerfilePath: backend/Dockerfile
     envVars:
-      - key: PORT
-        value: "3000"
-    envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 3001
+        value: "3000"
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
@@ -28,12 +25,14 @@ services:
       region: oregon
       plan: free
 
-  # Frontend Static Site
+  # Frontend Web Service (for SPA)
   - name: dict-calendar-frontend
-    type: static
+    type: web
     region: oregon
     buildCommand: npm install && npm run build
     publishDir: dist
     envVars:
       - key: VITE_API_URL
-        value: https://dict-calendar-backend.onrender.com
+        value: https://dict-calendar-backend.onrender.com/api
+      - key: NODE_ENV
+        value: production
