@@ -8,7 +8,7 @@ COPY package.json package-lock.json ./
 
 # Install build tools and dependencies so native modules compile on Linux
 RUN apk add --no-cache build-base python3 git
-RUN npm install --omit=dev --ignore-scripts
+RUN npm install --ignore-scripts
 
 # Copy source
 COPY . .
