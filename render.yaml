@@ -27,6 +27,7 @@ services:
   - name: dict-calendar-frontend
     type: web
     region: oregon
+    runtime: node
     buildCommand: npm install && npm run build
     startCommand: npx serve dist -l $PORT
     envVars:
