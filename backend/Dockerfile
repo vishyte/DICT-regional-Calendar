@@ -23,7 +23,7 @@ WORKDIR /app
 
 # Copy package files and install runtime deps (no build tools needed)
 COPY package.json package-lock.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev --ignore-scripts
 
 # Copy built app from builder
 COPY --from=builder /app/dist ./dist
