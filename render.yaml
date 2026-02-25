@@ -17,7 +17,7 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: FRONTEND_URL
-        value: https://r11regionalcalender.web.app/
+        value: https://dict-calendar-frontend-production-9ea1.up.railway.app
       - key: SUPERADMIN_USERNAME
         sync: false
       - key: SUPERADMIN_PASSWORD
