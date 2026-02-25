@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://dict-calendar-frontend-production-9ea1.up.railway.app',
+  origin: '*',
   credentials: true
 }));
 app.use(express.json());
