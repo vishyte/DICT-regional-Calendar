@@ -11,28 +11,30 @@ services:
       - key: PORT
         value: "3001"
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: dict-calendar-db
+          property: connectionString
       - key: JWT_SECRET
         sync: false
       - key: FRONTEND_URL
-        value: https://dict-calendar-frontend.onrender.com
+        value: https://r11regionalcalender.web.app/
       - key: SUPERADMIN_USERNAME
         sync: false
       - key: SUPERADMIN_PASSWORD
         sync: false
-    postgres:
-      name: dict-calendar-db
-      region: oregon
-      plan: free
 
-  # Frontend Web Service (for SPA)
+  # Frontend Static Site
   - name: dict-calendar-frontend
-    type: web
+    type: static
     region: oregon
     buildCommand: npm install && npm run build
-    publishDir: dist
+    outputDir: dist
     envVars:
       - key: VITE_API_URL
-        value: https://dict-calendar-backend.onrender.com/api
-      - key: NODE_ENV
-        value: production
+        value: https://dict-regional-calendar-backend.onrender.com/api
+
+# Managed PostgreSQL Database
+databases:
+  - name: dict-calendar-db
+    region: oregon
+    plan: free
