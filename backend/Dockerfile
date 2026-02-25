@@ -6,7 +6,8 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Install dependencies
+# Install build tools and dependencies so native modules compile on Linux
+RUN apk add --no-cache build-base python3 git
 RUN npm ci --omit=dev
 
 # Copy source
@@ -20,24 +21,19 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install build-essential for better-sqlite3 native binding
-RUN apk add --no-cache python3 make g++ gzip
-
-# Copy package files
+# Copy package files and install runtime deps (no build tools needed)
 COPY package.json package-lock.json ./
-
-# Install runtime dependencies only
 RUN npm ci --omit=dev
 
 # Copy built app from builder
 COPY --from=builder /app/dist ./dist
 
-# Expose port
-EXPOSE 3000
+# Expose port (backend expects 3001 by default)
+EXPOSE 3001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})" || exit 1
+  CMD node -e "require('http').get('http://localhost:3001/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})" || exit 1
 
 # Start server
 CMD ["npm", "start"]
