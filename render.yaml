@@ -23,12 +23,12 @@ services:
       - key: SUPERADMIN_PASSWORD
         sync: false
 
-  # Frontend Static Site
+  # Frontend Web Service (serves SPA)
   - name: dict-calendar-frontend
-    type: static
+    type: web
     region: oregon
     buildCommand: npm install && npm run build
-    outputDir: dist
+    startCommand: npx serve dist -l $PORT
     envVars:
       - key: VITE_API_URL
         value: https://dict-regional-calendar-backend.onrender.com/api
