@@ -17,7 +17,7 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: FRONTEND_URL
-        value: https://dict-calendar-frontend-production-9ea1.up.railway.app
+        value: https://r11regionalcalender.web.app/
       - key: SUPERADMIN_USERNAME
         sync: false
       - key: SUPERADMIN_PASSWORD
@@ -32,7 +32,7 @@ services:
     startCommand: npx serve dist -l $PORT
     envVars:
       - key: VITE_API_URL
-        value: https://dict-regional-calendar-backend.onrender.com/api
+        value: https://dict-regional-calendar-backend-production-b40c.up.railway.app
 
 # Managed PostgreSQL Database
 databases:
