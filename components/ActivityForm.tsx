@@ -50,6 +50,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     "IIDB",
     "Free Wi-Fi for All",
     "Cybersecurity",
+    "Admin",
     "PNPKI",
     "ILCDB",
     "DTC ILCDB Core",

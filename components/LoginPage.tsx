@@ -364,6 +364,8 @@ export function LoginPage() {
                       <SelectItem value="NIPPSB">NIPPSB</SelectItem>
                       <SelectItem value="PNPKI">PNPKI</SelectItem>
                       <SelectItem value="MISS">MISS</SelectItem>
+                      <SelectItem value="Cybersecurity">Cybersecurity</SelectItem>
+                      <SelectItem value="Admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
