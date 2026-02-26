@@ -11,6 +11,23 @@ let pgPool: Pool | null = null;
 // SQLite database (for local development)
 let sqliteDb: Database.Database | null = null;
 
+// Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
+function convertPlaceholders(sql: string): string {
+  let result = '';
+  let paramIndex = 1;
+  
+  for (let i = 0; i < sql.length; i++) {
+    if (sql[i] === '?') {
+      result += '$' + paramIndex;
+      paramIndex++;
+    } else {
+      result += sql[i];
+    }
+  }
+  
+  return result;
+}
+
 // Create a unified pool interface that works with both databases
 class DatabasePool {
   async query(sql: string, params: any[] = []) {
@@ -26,7 +43,10 @@ class DatabasePool {
           });
         }
 
-        const result = await pgPool.query(sql, params);
+        // Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
+        const pgSql = convertPlaceholders(sql);
+        
+        const result = await pgPool.query(pgSql, params);
         return {
           rows: result.rows,
           rowCount: result.rowCount || 0
