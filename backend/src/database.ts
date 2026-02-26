@@ -16,13 +16,24 @@ function shouldUsePostgres(): boolean {
 
 // Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
 function convertPlaceholders(sql: string): string {
-  let result = '';
+  const placeholders: string[] = [];
   let paramIndex = 1;
   
+  // First pass: count all ? placeholders
   for (let i = 0; i < sql.length; i++) {
     if (sql[i] === '?') {
-      result += '$' + paramIndex;
+      placeholders.push('$' + paramIndex);
       paramIndex++;
+    }
+  }
+  
+  // Second pass: replace ? with $n
+  let placeholderIndex = 0;
+  let result = '';
+  for (let i = 0; i < sql.length; i++) {
+    if (sql[i] === '?') {
+      result += placeholders[placeholderIndex];
+      placeholderIndex++;
     } else {
       result += sql[i];
     }
