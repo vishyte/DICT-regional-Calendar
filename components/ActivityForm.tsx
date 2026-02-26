@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -171,7 +171,41 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     return [];
   }
 
-  const allPersonnel: Personnel[] = getLocalPersonnel();
+  const [allPersonnel, setAllPersonnel] = useState<Personnel[]>(getLocalPersonnel());
+
+  // After mounting, attempt to load users from backend as well and merge
+  useEffect(() => {
+    import("../utils/api").then(({ usersAPI }) => {
+      usersAPI.getAll().then(res => {
+        const backendUsers = (res.data || []).map((u: any) => ({
+          idNumber: u.idNumber || u.username || String(u.id || ""),
+          fullName: u.fullName || `${u.first_name || ""}${u.middle_name ? " " + u.middle_name : ""} ${u.last_name || ""}`.trim(),
+          email: u.email || "",
+        }));
+        // merge with local personnel and dedupe by idNumber
+        const combined = [...getLocalPersonnel(), ...backendUsers];
+        const unique: Record<string, Personnel> = {};
+        combined.forEach(p => {
+          if (p.idNumber) unique[p.idNumber] = p;
+        });
+        const merged = Object.values(unique);
+        setAllPersonnel(merged);
+        // also update local storage
+        try {
+          const storageUsers = merged.map(p => ({
+            username: p.idNumber,
+            email: p.email,
+            first_name: p.fullName.split(" ")[0] || "",
+            middle_name: p.fullName.split(" ")[1] || "",
+            last_name: p.fullName.split(" ").slice(2).join(" ") || "",
+          }));
+          localStorage.setItem('local_users', JSON.stringify(storageUsers));
+        } catch {}
+      }).catch(e => {
+        console.error("Failed to fetch backend users", e);
+      });
+    });
+  }, []);
 
   // Available personnel for assignment (excluding the current user)
   const availablePersonnel = allPersonnel.filter((p: Personnel) => p.idNumber !== user?.idNumber);
