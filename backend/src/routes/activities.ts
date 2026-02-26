@@ -176,7 +176,12 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     values.push(id);
-    const query = `UPDATE activities SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+    // build query (don't assume updated_at column exists)
+    const query = `UPDATE activities SET ${fields.join(', ')} WHERE id = ?`;
+
+    // log query for debugging
+    console.log('Update activity query:', query);
+    console.log('Values:', values);
 
     const result = await pool.query(query, values);
     if (result.rowCount === 0) {
@@ -184,9 +189,15 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     res.json({ message: 'Activity updated' });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Update activity error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      stack: error.stack
+    });
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
