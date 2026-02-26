@@ -27,19 +27,10 @@ export async function sendVerificationCodeEmail(
     const emailjsPublicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
     
     if (!emailjsServiceId || !emailjsTemplateId || !emailjsPublicKey) {
-      // For development/testing: log the code instead
-      console.log('📧 Verification Code (EmailJS not configured):');
-      console.log('Email:', recipientEmail);
-      console.log('Verification Code:', verificationCode);
-      console.log('\n📧 To enable email verification:');
-      console.log('1. Create a verification template in EmailJS');
-      console.log('2. Add to .env: VITE_EMAILJS_VERIFICATION_TEMPLATE_ID=your_template_id');
-      console.log('3. Or use existing template: VITE_EMAILJS_TEMPLATE_ID');
-      
-      // Return success even if not configured - code is logged for testing
+      // EmailJS not configured - silently fail without exposing code
       return {
-        success: true,
-        message: 'Verification code generated (check console for code in development mode)'
+        success: false,
+        error: 'Email service not configured. Please contact administrator.'
       };
     }
     
@@ -53,10 +44,6 @@ export async function sendVerificationCodeEmail(
       subject: 'Email Verification Code - DICT Regional Calendar',
       message: `Your verification code is: ${verificationCode}`,
     };
-    
-    console.log('📧 Sending verification code email...');
-    console.log('To:', recipientEmail);
-    console.log('Code:', verificationCode);
     
     const response = await fetch(`https://api.emailjs.com/api/v1.0/email/send`, {
       method: 'POST',
@@ -72,8 +59,6 @@ export async function sendVerificationCodeEmail(
     });
     
     const responseText = await response.text();
-    console.log('EmailJS Response Status:', response.status);
-    console.log('EmailJS Response:', responseText);
     
     if (response.ok) {
       if (responseText === 'OK' || responseText.includes('OK')) {
