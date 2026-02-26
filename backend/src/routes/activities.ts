@@ -4,6 +4,17 @@ import { authenticateToken, AuthRequest } from '../middleware';
 
 const router = express.Router();
 
+// Helper to format date as YYYY-MM-DD
+function formatDate(date: any): string | undefined {
+  if (!date) return undefined;
+  if (typeof date === 'string') return date.split('T')[0];
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Get all activities (public)
 router.get('/', async (req: AuthRequest, res) => {
   try {
@@ -17,9 +28,9 @@ router.get('/', async (req: AuthRequest, res) => {
     const activities = result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
-      date: row.date,
-      endDate: row.end_date,
-      originalDate: row.original_date,
+      date: formatDate(row.date),
+      endDate: formatDate(row.end_date),
+      originalDate: formatDate(row.original_date),
       time: row.time,
       endTime: row.end_time,
       location: row.location,
@@ -32,7 +43,7 @@ router.get('/', async (req: AuthRequest, res) => {
       facilitator: row.facilitator,
       status: row.status,
       changeReason: row.change_reason,
-      changeDate: row.change_date,
+      changeDate: formatDate(row.change_date),
       createdBy: {
         idNumber: row.created_by_username,
         fullName: `${row.first_name} ${row.last_name}`,
