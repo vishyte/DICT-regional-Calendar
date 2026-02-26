@@ -204,9 +204,9 @@ export async function sendActivityEmail(
   activity: ActivityEmailData
 ): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
-    // Check if EmailJS is configured
-    const emailjsServiceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-    const emailjsTemplateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+    // Check if EmailJS is configured (use provided defaults when env vars are missing)
+    const emailjsServiceId = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_cpog5wn';
+    const emailjsTemplateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_iibxxoe';
     const emailjsPublicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
     
     if (!emailjsServiceId || !emailjsTemplateId || !emailjsPublicKey) {
