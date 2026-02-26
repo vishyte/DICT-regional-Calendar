@@ -155,44 +155,26 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
       'partnerInstitution': 'partner_institution',
       'changeReason': 'change_reason',
       'changeDate': 'change_date',
-      'createdBy': 'created_by_id',
       'timeStart': 'time',
       'timeEnd': 'end_time'
     };
+
+    // Fields that should NOT be updated by the client
+    const protectedFields = ['id', 'createdBy', 'created_by_id', 'created_at'];
 
     const fields: string[] = [];
     const values: any[] = [];
 
     Object.keys(updates).forEach(key => {
-      // do not allow updating primary key
-      if (key === 'id') {
+      // Skip protected fields
+      if (protectedFields.includes(key)) {
         return;
       }
 
       if (updates[key] !== undefined) {
-        let value = updates[key];
-
-        // if the client passed a full user object for createdBy, extract the id
-        if (key === 'createdBy' && value && typeof value === 'object') {
-          // value may be { idNumber, fullName, email, project }
-          // idNumber is actually the username, which in this app is used as id in users table
-          // we ideally store numeric user id, but client was sending object; attempt to coerce
-          if (typeof value.id === 'number') {
-            value = value.id;
-          } else if (value.idNumber) {
-            const maybeNum = parseInt(value.idNumber, 10);
-            if (!isNaN(maybeNum)) {
-              value = maybeNum;
-            } else {
-              // keep string as a fallback; will likely cause FK error if invalid
-              value = value.idNumber;
-            }
-          }
-        }
-
         const dbColumn = fieldMap[key] || key;
         fields.push(`${dbColumn} = ?`);
-        values.push(value);
+        values.push(updates[key]);
       }
     });
 
@@ -201,10 +183,8 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     values.push(id);
-    // build query (don't assume updated_at column exists)
     const query = `UPDATE activities SET ${fields.join(', ')} WHERE id = ?`;
 
-    // log query for debugging
     console.log('Update activity query:', query);
     console.log('Values:', values);
 
