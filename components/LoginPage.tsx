@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Input } from "./ui/input";
@@ -10,6 +10,9 @@ import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
 import { DICTLogo } from "./DICTLogo";
 import { generateVerificationCode, sendVerificationCodeEmail } from "./utils/verificationEmailService";
+
+// OTP cooldown duration in seconds
+const OTP_COOLDOWN_SECONDS = 60;
 
 export function LoginPage() {
   const { login, register } = useAuth();
@@ -32,6 +35,19 @@ export function LoginPage() {
   const [verificationCode, setVerificationCode] = useState("");
   const [enteredCode, setEnteredCode] = useState("");
   const [sendingCode, setSendingCode] = useState(false);
+  
+  // OTP cooldown timer (in seconds)
+  const [cooldownTimer, setCooldownTimer] = useState(0);
+
+  // Cooldown timer effect
+  useEffect(() => {
+    if (cooldownTimer > 0) {
+      const timer = setTimeout(() => {
+        setCooldownTimer(cooldownTimer - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldownTimer]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +72,12 @@ export function LoginPage() {
   const handleSendVerificationCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    
+    // Check cooldown
+    if (cooldownTimer > 0) {
+      setError(`Please wait ${cooldownTimer} seconds before requesting a new code.`);
+      return;
+    }
     
     // Basic validation before sending code
     if (!username || !firstName || !lastName || !email || !password || !confirmPassword || !project) {
@@ -90,6 +112,7 @@ export function LoginPage() {
     
     if (result.success) {
       setVerificationStep('verify');
+      setCooldownTimer(OTP_COOLDOWN_SECONDS);
       toast.success("Verification code sent!", {
         description: `Check your email (${email}) for the verification code.`,
       });
@@ -97,6 +120,7 @@ export function LoginPage() {
       // If email fails, still allow verification with code shown in console (for development)
       if (result.message?.includes('not configured') || result.message?.includes('console')) {
         setVerificationStep('verify');
+        setCooldownTimer(OTP_COOLDOWN_SECONDS);
         toast.info("Verification code generated", {
           description: `Check the browser console (F12) for the code. Email sending not configured.`,
           duration: 10000,
@@ -167,6 +191,7 @@ export function LoginPage() {
         setProject("");
         setEnteredCode("");
         setVerificationCode("");
+        setCooldownTimer(0);
         setLoading(false);
       }
       } catch (err: any) {
@@ -200,6 +225,7 @@ export function LoginPage() {
     setVerificationStep('form');
     setEnteredCode("");
     setVerificationCode("");
+    setCooldownTimer(0);
     // Clean up session storage
     if (email) {
       sessionStorage.removeItem(`verification_code_${email}`);
@@ -411,9 +437,9 @@ export function LoginPage() {
                   <Button
                     type="submit"
                     className="w-full bg-blue-600 hover:bg-blue-700"
-                    disabled={sendingCode}
+                    disabled={sendingCode || cooldownTimer > 0}
                   >
-                    {sendingCode ? "Sending Code..." : "Send Verification Code"}
+                    {sendingCode ? "Sending Code..." : cooldownTimer > 0 ? `Wait ${cooldownTimer}s` : "Send Verification Code"}
                   </Button>
                 </>
               )}
@@ -447,7 +473,14 @@ export function LoginPage() {
                         />
                       </div>
                       <p className="text-xs text-gray-500">
-                        Check your email for the code. Didn't receive it? <button type="button" onClick={handleSendVerificationCode} className="text-blue-600 hover:underline" disabled={sendingCode}>{sendingCode ? "Sending..." : "Resend code"}</button>
+                        Check your email for the code. 
+                        {cooldownTimer > 0 ? (
+                          <span className="text-orange-600"> Resend available in {cooldownTimer}s</span>
+                        ) : (
+                          <button type="button" onClick={handleSendVerificationCode} className="text-blue-600 hover:underline" disabled={sendingCode || cooldownTimer > 0}>
+                            {sendingCode ? "Sending..." : "Resend code"}
+                          </button>
+                        )}
                       </p>
                     </div>
                   </div>
