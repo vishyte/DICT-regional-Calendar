@@ -391,7 +391,8 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     }
 
     // Send email notification (non-blocking - don't wait for it)
-    const recipientEmail = "vishy.te@dict.gov.ph"; // Test email provided by user
+    // prefer the current user's email; fallback to hardcoded test address for local dev
+    const recipientEmail = user?.email || "vishy.te@dict.gov.ph";
     sendActivityEmail(recipientEmail, {
       name,
       date: dateKey,

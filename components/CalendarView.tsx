@@ -126,22 +126,21 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     const newDateKey = newDate;
     const dateChanged = newDate !== editingActivity.date;
 
-    // Create updated activity with all editable fields
-    const updatedActivity: Activity = { 
-      ...editingActivity,
+    // Build a sanitized updates object (omit id, convert createdBy to id)
+    const updatedActivity: Partial<Activity> = {
       name: editTitle,
       venue: editVenue,
       partnerInstitution: editPartnerInstitution,
       participants: editFinalPax ? parseInt(editFinalPax, 10) : undefined,
       assignedPersonnel: editAssignedPersonnel.length > 0 ? editAssignedPersonnel : undefined,
     };
-    
+
     // If date changed
     if (dateChanged) {
       updatedActivity.originalDate = editingActivity.originalDate || editingActivity.date;
       updatedActivity.date = newDate;
     }
-    
+
     // If status changed
     if (changeStatus) {
       // Marking as Completed should transition to "Submission of Documents" (yellow)
@@ -152,6 +151,15 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
       }
       updatedActivity.changeReason = changeReason;
       updatedActivity.changeDate = new Date().toISOString();
+    }
+
+    // If the existing activity has a createdBy with an idNumber, send just the id
+    if (editingActivity.createdBy) {
+      // assume idNumber is numeric string representing user id
+      const num = parseInt(editingActivity.createdBy.idNumber, 10);
+      if (!isNaN(num)) {
+        updatedActivity.createdBy = num as any;
+      }
     }
 
     try {
