@@ -57,14 +57,14 @@ router.post('/register', async (req, res) => {
     // Insert user (default role = 'user')
     const result = await pool.query(
       `INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project, role)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [username, email, passwordHash, firstName, middleName || null, lastName, project, 'user']
     );
 
     // Fetch inserted user (include role)
     const userResult = await pool.query(
-      'SELECT id, username, email, first_name, middle_name, last_name, project, role FROM users WHERE username = ?',
-      [username]
+      'SELECT id, username, email, first_name, middle_name, last_name, project, role FROM users WHERE id = ?',
+      [result.rows[0]?.id]
     );
 
     const user = userResult.rows[0];
@@ -382,16 +382,16 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Insert user (include role)
-    await pool.query(
+    const result = await pool.query(
       `INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project, role)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [username, email, passwordHash, firstName, middleName || null, lastName, project, role || 'user']
     );
 
     // Fetch inserted user
     const userResult = await pool.query(
-      'SELECT id, username, email, first_name, middle_name, last_name, project, role, created_at FROM users WHERE username = ?',
-      [username]
+      'SELECT id, username, email, first_name, middle_name, last_name, project, role, created_at FROM users WHERE id = ?',
+      [result.rows[0]?.id]
     );
 
     const user = userResult.rows[0] as any;
