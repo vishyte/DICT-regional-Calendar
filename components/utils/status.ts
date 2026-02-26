@@ -12,33 +12,61 @@ export function deriveDisplayStatus(a: any): DisplayStatus {
   // If status is not Scheduled, return stored status
   if (!a || a.status !== "Scheduled") return (a?.status as DisplayStatus) || "Scheduled";
 
-  // Use local date instead of UTC to avoid timezone issues
-  const today = new Date();
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  // Use local date and time to determine status
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  
   const start = a.date;
   const end = a.endDate && a.endDate !== a.date ? a.endDate : null;
+  const startTime = a.time || "00:00";
+  const endTime = a.end_time || "23:59";
 
   // Multi-day event
   if (end) {
+    if (start > todayKey) {
+      // Event starts in the future
+      return "Upcoming";
+    }
+    
+    if (end < todayKey) {
+      // Event has ended (past end date)
+      return "Submission of Documents";
+    }
+    
+    // Today is within the event range
+    // If duration is 2 days or more and today is within range => Ongoing
     const startDate = new Date(start);
     const endDate = new Date(end);
     const diffDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-    if (start <= todayKey && todayKey <= end) {
-      // If duration is 2 days or more and today is within range => Ongoing
-      if (diffDays >= 2) return "Ongoing";
-      // For 1-day ranges that accidentally have endDate same day, show Upcoming/Ongoing based on time elsewhere
-      return "Upcoming";
-    }
-
-    // If already past the end date
-    if (end < todayKey) return "Submission of Documents";
-    // If starts in future
-    return "Upcoming";
+    if (diffDays >= 2) return "Ongoing";
+    
+    // For single-day events that span multiple days (shouldn't happen but handle it)
+    return "Ongoing";
   }
 
-  // Single-day event: past => Submission of Documents, future => Upcoming
-  return start < todayKey ? "Submission of Documents" : "Upcoming";
+  // Single-day event - check both date AND time
+  if (start < todayKey) {
+    // Past date
+    return "Submission of Documents";
+  }
+  
+  if (start === todayKey) {
+    // Today - check time
+    if (endTime <= currentTime) {
+      // Past end time today
+      return "Submission of Documents";
+    }
+    if (startTime <= currentTime && endTime > currentTime) {
+      // Currently ongoing
+      return "Ongoing";
+    }
+    // Before start time today
+    return "Upcoming";
+  }
+  
+  // Future date
+  return "Upcoming";
 }
 
 export default deriveDisplayStatus;
