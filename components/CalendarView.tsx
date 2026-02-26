@@ -46,9 +46,19 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
 
   // Live clock
   const [now, setNow] = useState<Date>(new Date());
+  const [, setRefreshCounter] = useState(0);
+  
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Real-time status update - refresh every minute
+  useEffect(() => {
+    const statusTimer = setInterval(() => {
+      setRefreshCounter(prev => prev + 1);
+    }, 60000); // Update every 60 seconds
+    return () => clearInterval(statusTimer);
   }, []);
 
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -66,6 +66,15 @@ export function ActivitiesPerProvince() {
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
+  const [, setRefreshCounter] = useState(0);
+
+  // Real-time status update - refresh every minute
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRefreshCounter(prev => prev + 1);
+    }, 60000); // Update every 60 seconds
+    return () => clearInterval(timer);
+  }, []);
 
   const activities: Activity[] = useMemo(() => {
     const out: Activity[] = [];
@@ -117,7 +126,7 @@ export function ActivitiesPerProvince() {
       }
     }
     return out;
-  }, [calendarActivities]);
+  }, [calendarActivities, setRefreshCounter]);
   
   // Use fixed, ordered provinces list
   const provinces = [

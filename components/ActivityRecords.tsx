@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useActivities } from "./ActivitiesContext";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
@@ -66,6 +66,15 @@ export function ActivityRecords() {
   const [attendanceFileName, setAttendanceFileName] = useState<string>("");
   const [todaFile, setTodaFile] = useState<File | null>(null);
   const [todaFileName, setTodaFileName] = useState<string>("");
+  const [, setRefreshCounter] = useState(0);
+
+  // Real-time status update - refresh every minute
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRefreshCounter(prev => prev + 1);
+    }, 60000); // Update every 60 seconds
+    return () => clearInterval(timer);
+  }, []);
 
   const projects = [
     "IIDB",
@@ -433,12 +442,12 @@ export function ActivityRecords() {
       }
     }
     return out;
-  }, [calendarActivities]);
+  }, [calendarActivities, setRefreshCounter]);
 
   const combinedActivities = useMemo(() => {
     // Show only activities that exist in the calendar context
     return mappedFromCalendar;
-  }, [mappedFromCalendar]);
+  }, [mappedFromCalendar, setRefreshCounter]);
 
   // Filter activities
   const filteredActivities = combinedActivities.filter(activity => {

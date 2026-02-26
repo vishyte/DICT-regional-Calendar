@@ -9,10 +9,15 @@ export type DisplayStatus =
   | "Ongoing";
 
 export function deriveDisplayStatus(a: any): DisplayStatus {
-  // If status is not Scheduled, return stored status
-  if (!a || a.status !== "Scheduled") return (a?.status as DisplayStatus) || "Scheduled";
+  if (!a) return "Scheduled";
 
-  // Use local date and time to determine status
+  // For special administrative statuses, keep them as-is
+  const specialStatuses: DisplayStatus[] = ["For Approval", "Postponed", "Cancelled"];
+  if (specialStatuses.includes(a.status as DisplayStatus)) {
+    return a.status as DisplayStatus;
+  }
+
+  // Use local date and time to determine status for temporal activities
   const now = new Date();
   const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -20,7 +25,7 @@ export function deriveDisplayStatus(a: any): DisplayStatus {
   const start = a.date;
   const end = a.endDate && a.endDate !== a.date ? a.endDate : null;
   const startTime = a.time || "00:00";
-  const endTime = a.end_time || "23:59";
+  const endTime = a.end_time || a.endTime || "23:59";
 
   // Multi-day event
   if (end) {
@@ -54,7 +59,7 @@ export function deriveDisplayStatus(a: any): DisplayStatus {
   if (start === todayKey) {
     // Today - check time
     if (endTime <= currentTime) {
-      // Past end time today
+      // Past end time today - ACTIVITY ENDED, NEEDS DOCUMENT SUBMISSION
       return "Submission of Documents";
     }
     if (startTime <= currentTime && endTime > currentTime) {
