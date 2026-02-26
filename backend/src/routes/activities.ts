@@ -1,4 +1,4 @@
- import express from 'express';
+import express from 'express';
 import pool from '../database';
 import { authenticateToken, AuthRequest } from '../middleware';
 
@@ -55,17 +55,23 @@ router.get('/', async (req: AuthRequest, res) => {
 // Create activity
 router.post('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
+    console.log('Creating activity, user:', req.user);
+    
     const {
       name, date, endDate, time, endTime, location, venue, sector, project, description,
       participants, facilitator, priority, partnerInstitution, mode, platform,
       venueAddress
     } = req.body;
 
+    console.log('Activity data:', { name, date, time, endTime, location, venue, sector, project });
+
     // Validate required fields
     if (!name || !date || !time || !endTime || !location || !venue || !sector || !project) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    console.log('Inserting into activities table...');
+    
     const result = await pool.query(
       `INSERT INTO activities (
         name, date, end_date, time, end_time, location, venue, sector, project, description,
@@ -77,8 +83,12 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
        mode, platform, venueAddress]
     );
 
+    console.log('Insert result:', result);
+
     // Get the inserted activity ID
     const insertedId = result.rows[0]?.id;
+    console.log('Inserted ID:', insertedId);
+    
     const insertedResult = await pool.query(
       'SELECT * FROM activities WHERE id = ?',
       [insertedId]
@@ -104,15 +114,18 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     console.error('Error details:', {
       code: error.code,
       message: error.message,
-      detail: error.detail
+      detail: error.detail,
+      stack: error.stack
     });
     
     let errorMessage = 'Failed to create activity';
     if (error.message?.includes('FOREIGN KEY')) {
       errorMessage = 'User not found. Please log in again.';
+    } else if (error.message?.includes('relation "activities" does not exist')) {
+      errorMessage = 'Database table not found. Please run migrations.';
     }
     
-    res.status(500).json({ error: errorMessage });
+    res.status(500).json({ error: errorMessage, details: error.message });
   }
 });
 
