@@ -12,7 +12,9 @@ export function deriveDisplayStatus(a: any): DisplayStatus {
   // If status is not Scheduled, return stored status
   if (!a || a.status !== "Scheduled") return (a?.status as DisplayStatus) || "Scheduled";
 
-  const todayKey = new Date().toISOString().slice(0, 10);
+  // Use local date instead of UTC to avoid timezone issues
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const start = a.date;
   const end = a.endDate && a.endDate !== a.date ? a.endDate : null;
 
