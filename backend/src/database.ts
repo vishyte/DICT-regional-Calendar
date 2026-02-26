@@ -2,14 +2,17 @@ import Database from 'better-sqlite3';
 import { Pool } from 'pg';
 import path from 'path';
 
-// Determine which database to use based on environment
-const usePostgres = process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres');
-
 // PostgreSQL pool (for Render deployment)
 let pgPool: Pool | null = null;
 
 // SQLite database (for local development)
 let sqliteDb: Database.Database | null = null;
+
+// Check if we should use PostgreSQL at runtime
+function shouldUsePostgres(): boolean {
+  const dbUrl = process.env.DATABASE_URL;
+  return !!(dbUrl && dbUrl.startsWith('postgres'));
+}
 
 // Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
 function convertPlaceholders(sql: string): string {
@@ -35,8 +38,8 @@ class DatabasePool {
       const normalized = sql.trim();
       const up = normalized.toUpperCase();
 
-      // Use PostgreSQL if DATABASE_URL is set
-      if (usePostgres) {
+      // Use PostgreSQL if DATABASE_URL is set - check at runtime
+      if (shouldUsePostgres()) {
         if (!pgPool) {
           pgPool = new Pool({
             connectionString: process.env.DATABASE_URL,
