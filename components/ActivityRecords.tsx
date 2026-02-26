@@ -9,7 +9,7 @@ import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "./ui/dialog";
 import { Label } from "./ui/label";
-import { Search, Filter, Download, Eye, Calendar, Users, Clock, FileText, Edit, AlertCircle } from "lucide-react";
+import { Search, Filter, Download, Eye, Calendar, Users, Clock, FileText, Upload, AlertCircle } from "lucide-react";
 import { formatTimeDisplay } from "./utils/timeFormat";
 import { deriveDisplayStatus } from "./utils/status";
 import { Alert, AlertDescription } from "./ui/alert";
@@ -612,7 +612,7 @@ export function ActivityRecords() {
       <Alert className="bg-blue-50 border-blue-200">
         <Users className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-900">
-          <strong>Participant Tracking:</strong> Upload attendance records and update participant counts using the Edit button. 
+          <strong>Document Submission:</strong> Once an activity is completed (status becomes "Submission of Documents"), use the Submit button to upload attendance records and update participant counts. 
           These statistics will automatically reflect in the home page dashboard for monthly and yearly totals.
         </AlertDescription>
       </Alert>
@@ -1108,9 +1108,10 @@ export function ActivityRecords() {
                           size="sm"
                           className="gap-2"
                           onClick={() => handleEditActivity(activity)}
+                          disabled={activity.status === "Ongoing" || activity.status === "Upcoming"}
                         >
-                          <Edit className="h-4 w-4" />
-                          Edit
+                          <Upload className="h-4 w-4" />
+                          Submit
                         </Button>
                       </div>
                     </TableCell>
