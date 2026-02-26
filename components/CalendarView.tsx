@@ -269,11 +269,33 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   
   const participantsThisYear = activitiesThisYear.reduce((sum, activity) => sum + (activity.participants || 0), 0);
 
+  const FIXED_PROVINCES = [
+    "Davao de Oro",
+    "Davao del Sur",
+    "Davao del Norte",
+    "Davao Oriental",
+    "Davao Occidental",
+    "Davao City",
+  ];
+
+  const provinceCounts = FIXED_PROVINCES.reduce((acc: Record<string, number>, p) => {
+    acc[p] = 0;
+    return acc;
+  }, {} as Record<string, number>);
+
+  for (const a of allActivities) {
+    const loc = (a.location || "").toString().toLowerCase();
+    for (const p of FIXED_PROVINCES) {
+      if (loc.includes(p.toLowerCase())) {
+        provinceCounts[p] = (provinceCounts[p] || 0) + 1;
+        break;
+      }
+    }
+  }
+
   const quickStats = [
     { label: "Total Activities", value: totalActivities.toString(), icon: Clock, color: "bg-blue-500" },
-    { label: "This Month", value: activitiesThisMonth.length.toString(), icon: CalendarPlus, color: "bg-green-500" },
-    { label: "Participants (Month)", value: participantsThisMonth.toLocaleString(), icon: Users, color: "bg-purple-500" },
-    { label: "Participants (Year)", value: participantsThisYear.toLocaleString(), icon: UserCheck, color: "bg-orange-500" },
+    ...FIXED_PROVINCES.map((p) => ({ label: p, value: (provinceCounts[p] || 0).toString(), icon: MapPin, color: "bg-indigo-500" })),
   ];
 
   return (
@@ -521,7 +543,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     </div>
                     {activity.createdBy && (
                       <div className="text-xs text-gray-600">
-                        Created by {activity.createdBy.fullName.charAt(0).toUpperCase() + activity.createdBy.fullName.slice(1).toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
+                        Created by {activity.createdBy.fullName.toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
                       </div>
                     )}
                     <div className="flex gap-2">

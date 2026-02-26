@@ -256,10 +256,37 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
   const handleUpdateTask = (idNumber: string, task: string) => {
     try {
       setAssignedPersonnel(prev => prev.map(p => 
-        p.idNumber === idNumber ? { ...p, task } : p
+        p.idNumber === idNumber ? { ...p, task: (task || '').toUpperCase() } : p
       ));
     } catch (error) {
       console.error("Error updating task:", error);
+    }
+  };
+
+  // Uppercase text inputs and textareas on user input for uniform data
+  const handleUppercaseInput = (e: React.FormEvent<HTMLFormElement>) => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    // If the event target is an input or textarea, convert its value to uppercase
+    const el = target as HTMLInputElement | HTMLTextAreaElement;
+    if (!el || !('value' in el)) return;
+
+    const tag = el.tagName?.toLowerCase();
+    if (tag === 'input') {
+      const type = (el.getAttribute('type') || '').toLowerCase();
+      // Only transform textual input types
+      const skipTypes = ['time', 'number', 'email', 'tel', 'url', 'password', 'checkbox', 'radio', 'file'];
+      if (skipTypes.includes(type)) return;
+      const start = (el as HTMLInputElement).selectionStart ?? 0;
+      const end = (el as HTMLInputElement).selectionEnd ?? 0;
+      (el as HTMLInputElement).value = (el as HTMLInputElement).value.toUpperCase();
+      try { (el as HTMLInputElement).setSelectionRange(start, end); } catch {}
+    } else if (tag === 'textarea') {
+      const start = (el as HTMLTextAreaElement).selectionStart ?? 0;
+      const end = (el as HTMLTextAreaElement).selectionEnd ?? 0;
+      (el as HTMLTextAreaElement).value = (el as HTMLTextAreaElement).value.toUpperCase();
+      try { (el as HTMLTextAreaElement).setSelectionRange(start, end); } catch {}
     }
   };
 
@@ -486,7 +513,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
         <CardTitle className="text-center">Activity Registration Form</CardTitle>
       </CardHeader>
       <CardContent className="p-8">
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit} onInput={handleUppercaseInput} className="space-y-8">
           {/* Creator/User banner */}
           <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-md">
             <Users className="h-5 w-5 text-blue-700" />
@@ -789,7 +816,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                     type="text"
                     placeholder="e.g., Cybersecurity Awareness"
                     value={activityNameBeforeFor}
-                    onChange={(e) => setActivityNameBeforeFor(e.target.value)}
+                    onChange={(e) => setActivityNameBeforeFor(e.target.value.toUpperCase())}
                     required
                     className="flex-1"
                   />
@@ -802,7 +829,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                     type="text"
                     placeholder="e.g., Rebel Returnees"
                     value={activityNameAfterFor}
-                    onChange={(e) => setActivityNameAfterFor(e.target.value)}
+                    onChange={(e) => setActivityNameAfterFor(e.target.value.toUpperCase())}
                     required
                     className="flex-1"
                   />

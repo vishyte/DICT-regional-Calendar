@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Calendar, CalendarPlus, BarChart3, Users, MapPin, FileText, Clock, TrendingUp } from "lucide-react";
+import { useActivities } from "./ActivitiesContext";
 
 interface HomePageProps {
   onNavigateToActivity: () => void;
@@ -21,11 +22,36 @@ export function HomePage({
   totalActivities = 0,
   activitiesThisMonth = 0
 }: HomePageProps) {
+  const { activities: calendarActivities } = useActivities();
+  const allActivities = Object.values(calendarActivities).flat();
+
+  const FIXED_PROVINCES = [
+    "Davao de Oro",
+    "Davao del Sur",
+    "Davao del Norte",
+    "Davao Oriental",
+    "Davao Occidental",
+    "Davao City",
+  ];
+
+  const provinceCounts = FIXED_PROVINCES.reduce((acc: Record<string, number>, p) => {
+    acc[p] = 0;
+    return acc;
+  }, {} as Record<string, number>);
+
+  for (const a of allActivities) {
+    const loc = (a.location || "").toString().toLowerCase();
+    for (const p of FIXED_PROVINCES) {
+      if (loc.includes(p.toLowerCase())) {
+        provinceCounts[p] = (provinceCounts[p] || 0) + 1;
+        break;
+      }
+    }
+  }
+
   const quickStats = [
-    { label: "Total Activities", value: totalActivities.toString(), icon: Calendar, color: "bg-blue-500" },
-    { label: "This Month", value: activitiesThisMonth.toString(), icon: Clock, color: "bg-green-500" },
-    { label: "Participants (This Month)", value: participantsThisMonth.toLocaleString(), icon: Users, color: "bg-purple-500" },
-    { label: "Participants (This Year)", value: participantsThisYear.toLocaleString(), icon: TrendingUp, color: "bg-orange-500" },
+    { label: "Total Activities", value: (totalActivities || allActivities.length).toString(), icon: Calendar, color: "bg-blue-500" },
+    ...FIXED_PROVINCES.map((p) => ({ label: p, value: (provinceCounts[p] || 0).toString(), icon: MapPin, color: "bg-indigo-500" })),
   ];
 
   const quickActions = [
