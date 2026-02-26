@@ -77,7 +77,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
         name, date, end_date, time, end_time, location, venue, sector, project, description,
         participants, facilitator, status, created_by_id, priority, partner_institution,
         mode, platform, venue_address
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [name, date, endDate || null, time, endTime, location, venue, sector, project, description,
        participants, facilitator, 'Scheduled', req.user!.id, priority, partnerInstitution,
        mode, platform, venueAddress]
