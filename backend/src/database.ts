@@ -16,24 +16,13 @@ function shouldUsePostgres(): boolean {
 
 // Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
 function convertPlaceholders(sql: string): string {
-  const placeholders: string[] = [];
   let paramIndex = 1;
-  
-  // First pass: count all ? placeholders
-  for (let i = 0; i < sql.length; i++) {
-    if (sql[i] === '?') {
-      placeholders.push('$' + paramIndex);
-      paramIndex++;
-    }
-  }
-  
-  // Second pass: replace ? with $n
-  let placeholderIndex = 0;
   let result = '';
+  
   for (let i = 0; i < sql.length; i++) {
     if (sql[i] === '?') {
-      result += placeholders[placeholderIndex];
-      placeholderIndex++;
+      result += '$' + paramIndex;
+      paramIndex++;
     } else {
       result += sql[i];
     }
@@ -45,12 +34,14 @@ function convertPlaceholders(sql: string): string {
 // Create a unified pool interface that works with both databases
 class DatabasePool {
   async query(sql: string, params: any[] = []) {
+    const isPg = shouldUsePostgres();
+    
     try {
       const normalized = sql.trim();
       const up = normalized.toUpperCase();
 
       // Use PostgreSQL if DATABASE_URL is set - check at runtime
-      if (shouldUsePostgres()) {
+      if (isPg) {
         if (!pgPool) {
           pgPool = new Pool({
             connectionString: process.env.DATABASE_URL,
@@ -59,6 +50,9 @@ class DatabasePool {
 
         // Convert SQLite ? placeholders to PostgreSQL $1, $2, etc.
         const pgSql = convertPlaceholders(sql);
+        
+        console.log('PostgreSQL SQL:', pgSql);
+        console.log('Params:', params);
         
         const result = await pgPool.query(pgSql, params);
         return {
@@ -93,6 +87,8 @@ class DatabasePool {
         return { rows: [], rowCount: 0 };
       }
     } catch (error: any) {
+      console.error('Database query error:', error.message);
+      console.error('SQL was:', isPg ? convertPlaceholders(sql) : sql);
       throw error;
     }
   }
