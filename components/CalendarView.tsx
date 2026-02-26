@@ -15,7 +15,7 @@ import { Gift } from "lucide-react";
 import { toast } from "sonner";
 import { formatTimeDisplay } from "./utils/timeFormat";
 import { deriveDisplayStatus } from "./utils/status";
-import { isPhilippineHoliday, getHolidayColor, getHolidayBadgeColor } from "./utils/philippineHolidays";
+import { isPhilippineHoliday, getHolidayColor, getHolidayBadgeColor, philippineHolidays } from "./utils/philippineHolidays";
 
 interface CalendarViewProps {
   onNavigateToActivity: (dateKey?: string) => void;
@@ -24,54 +24,6 @@ interface CalendarViewProps {
 }
 
 type Activity = CtxActivity;
-     {/* Holidays This Month */}
-     {(() => {
-       const monthHolidays = philippineHolidays.filter(h => {
-         const [year, month] = h.date.split("-");
-         return year === currentDate.getFullYear().toString() && 
-                month === String(currentDate.getMonth() + 1).padStart(2, "0");
-       });
-
-       if (monthHolidays.length === 0) return null;
-
-       return (
-         <Card className="border-0 shadow-md bg-gradient-to-r from-red-50 to-orange-50">
-           <CardHeader>
-             <div className="flex items-center gap-2">
-               <Gift className="h-5 w-5 text-red-600" />
-               <div>
-                 <CardTitle className="text-red-900">Holidays This Month</CardTitle>
-                 <CardDescription>{monthHolidays.length} holiday{monthHolidays.length !== 1 ? "s" : ""}</CardDescription>
-               </div>
-             </div>
-           </CardHeader>
-           <CardContent>
-             <div className="space-y-2">
-               {monthHolidays.map((holiday) => (
-                 <div 
-                   key={holiday.date}
-                   className="flex items-start justify-between p-2 bg-white bg-opacity-60 rounded-lg cursor-pointer hover:bg-opacity-100 transition-all"
-                   onClick={() => {
-                     const [year, month, day] = holiday.date.split("-");
-                     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                     setSelectedDate(date);
-                     setSelectedHoliday(holiday);
-                   }}
-                 >
-                   <div>
-                     <p className="text-sm font-semibold text-gray-900">{holiday.name}</p>
-                     <p className="text-xs text-gray-600">{holiday.date}</p>
-                   </div>
-                   <Badge className={getHolidayBadgeColor(holiday.type)} variant="outline">
-                     {holiday.type === "regular" ? "Regular" : holiday.type === "special" ? "Special" : "Provincial"}
-                   </Badge>
-                 </div>
-               ))}
-             </div>
-           </CardContent>
-         </Card>
-       );
-     })()}
 
 export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNavigateToRecords }: CalendarViewProps) {
   const { activities, updateActivity } = useActivities();
@@ -489,49 +441,6 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
           <CardContent>
             <div className="grid grid-cols-7 gap-1">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-         {selectedHoliday && (
-           <Card className="border-0 shadow-lg bg-gradient-to-br from-red-50 to-orange-50">
-             <CardHeader>
-               <div className="flex items-center gap-2">
-                 <Gift className="h-5 w-5 text-red-600" />
-                 <CardTitle className="text-red-900">{selectedHoliday.name}</CardTitle>
-               </div>
-               <CardDescription>
-                 {selectedDate
-                   ? `${monthNames[selectedDate.getMonth()]} ${selectedDate.getDate()}, ${selectedDate.getFullYear()}`
-                   : "Philippine Holiday"}
-               </CardDescription>
-             </CardHeader>
-             <CardContent className="space-y-4">
-               <div className="flex gap-2">
-                 <Badge className={getHolidayBadgeColor(selectedHoliday.type)}>
-                   {selectedHoliday.type === "regular" && "Regular Holiday"}
-                   {selectedHoliday.type === "special" && "Special Non-Working Holiday"}
-                   {selectedHoliday.type === "provincial" && "Provincial Holiday"}
-                 </Badge>
-               </div>
-               <p className="text-sm text-gray-700">
-                 This is a {selectedHoliday.type === "regular" ? "national" : "special"} holiday in the Philippines.
-                 Government offices and most businesses may be closed on this day.
-               </p>
-               {selectedActivities.length > 0 && (
-                 <div className="mt-4 pt-4 border-t border-orange-200">
-                   <p className="text-xs font-semibold text-gray-600 mb-2">
-                     Activities scheduled on this holiday:
-                   </p>
-                   <div className="space-y-2">
-                     {selectedActivities.map(a => (
-                       <div key={a.id} className="text-xs bg-white bg-opacity-50 p-2 rounded">
-                         {a.name}
-                       </div>
-                     ))}
-                   </div>
-                 </div>
-               )}
-             </CardContent>
-           </Card>
-         )}
-
                 <div
                   key={day}
                   className="p-2 text-center text-gray-700 bg-gray-50"
