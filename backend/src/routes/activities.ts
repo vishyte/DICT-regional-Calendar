@@ -1,4 +1,4 @@
-import express from 'express';
+ import express from 'express';
 import pool from '../database';
 import { authenticateToken, AuthRequest } from '../middleware';
 
@@ -71,17 +71,17 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
         name, date, end_date, time, end_time, location, venue, sector, project, description,
         participants, facilitator, status, created_by_id, priority, partner_institution,
         mode, platform, venue_address
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [name, date, endDate || null, time, endTime, location, venue, sector, project, description,
        participants, facilitator, 'Scheduled', req.user!.id, priority, partnerInstitution,
        mode, platform, venueAddress]
     );
 
-    // Get the inserted activity
-    const resultRow = (result.rows[0] as any);
+    // Get the inserted activity ID
+    const insertedId = result.rows[0]?.id;
     const insertedResult = await pool.query(
-      'SELECT * FROM activities WHERE rowid = ?',
-      [resultRow?.id || 0]
+      'SELECT * FROM activities WHERE id = ?',
+      [insertedId]
     );
 
     const activity = insertedResult.rows[0] as any;
