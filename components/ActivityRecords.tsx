@@ -10,10 +10,12 @@ import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "./ui/dialog";
 import { Label } from "./ui/label";
-import { Search, Filter, Download, Eye, Calendar, Users, Clock, FileText, Upload, AlertCircle } from "lucide-react";
+import { Search, Filter, Download, Eye, Calendar, Users, Clock, FileText, Upload, AlertCircle, Bell } from "lucide-react";
 import { formatTimeDisplay } from "./utils/timeFormat";
 import { deriveDisplayStatus } from "./utils/status";
 import { Alert, AlertDescription } from "./ui/alert";
+import { Toaster, toast } from "sonner";
+
 
 interface Activity {
   id: string;
@@ -26,6 +28,7 @@ interface Activity {
   timeEnd: string;
   duration: string;
   targetSector: string[];
+  location?: string; // added so ActivityRecords and others can reference location
   province: string;
   district: string;
   barangay: string;
@@ -103,6 +106,30 @@ export function ActivityRecords() {
 
   // Mock data for past activities
   const [activities, setActivities] = useState<Activity[]>([
+    {
+      id: "0",
+      name: "Test Activity - Pending Documents",
+      project: "Cybersecurity",
+      date: "2026-02-28",
+      timeStart: "13:00",
+      timeEnd: "16:00",
+      duration: "3 hours",
+      targetSector: ["Teachers", "Students"],
+      province: "Davao Del Norte",
+      district: "2nd District",
+      barangay: "New Visayas",
+      partnerInstitution: "DepEd Division Office",
+      resourcePerson: "Technical Operations Division",
+      mode: "Hybrid",
+      status: "Submission of Documents",
+      participants: 85,
+      notes: "Testing notification bell.",
+      createdBy: {
+        idNumber: "user123",
+        fullName: "John Doe",
+        email: "john@example.com"
+      }
+    },
     {
       id: "1",
       name: "Cybersecurity Awareness Seminar",
@@ -451,6 +478,38 @@ export function ActivityRecords() {
     return mappedFromCalendar;
   }, [mappedFromCalendar, setRefreshCounter]);
 
+  // Check for ended activities and send notification reminders
+  useEffect(() => {
+    const checkEndedActivities = () => {
+      const today = new Date().toISOString().slice(0, 10);
+      
+      combinedActivities.forEach((activity) => {
+        // Only notify for activities created by the current user
+        if (user?.idNumber !== activity.createdBy?.idNumber) return;
+        
+        // Check if activity has ended (date is today or in the past)
+        if (activity.date <= today) {
+          // Only notify if status is "Submission of Documents" (not already submitted)
+          if (activity.status === "Submission of Documents" && !sessionStorage.getItem(`notified-${activity.id}`)) {
+            toast.info(`📋 ${activity.name}`, {
+              description: "Activity ended. Please submit your attendance and TODA files to complete the record.",
+              icon: <Bell className="h-4 w-4 text-blue-500" />,
+              duration: 10000,
+            });
+            // Mark this activity as notified so we don't show the notification again
+            sessionStorage.setItem(`notified-${activity.id}`, "true");
+          }
+        }
+      });
+    };
+
+    // Check on component mount and when activities change
+    checkEndedActivities();
+    const notificationTimer = setInterval(checkEndedActivities, 300000); // Check every 5 minutes
+
+    return () => clearInterval(notificationTimer);
+  }, [combinedActivities, user]);
+
   // Filter activities
   const filteredActivities = combinedActivities.filter(activity => {
     const matchesSearch = activity.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -501,9 +560,60 @@ export function ActivityRecords() {
 
   
 
-  const handleExport = () => {
-    console.log("Exporting data...");
-    // Implementation for exporting data
+  const handleExport = async () => {
+    // Collect the currently filtered activities (visible in table)
+    const exportData = filteredActivities.map((a) => ({
+      Project: a.project,
+      Date: a.date,
+      Location: a.location || a.province,
+      Barangay: a.barangay,
+      Province: a.province,
+      Participants: a.participants,
+      "Created By": a.createdBy?.fullName || "",
+      Status: a.status,
+    }));
+
+    // 1. CSV (works in Excel)
+    const csvHeader = Object.keys(exportData[0] || {});
+    const csvRows = [csvHeader.join(','),
+      ...exportData.map(row => csvHeader.map(h => {
+        const val = row[h as keyof typeof row];
+        return typeof val === 'string' ? `"${val.replace(/"/g, '""')}"` : val;
+      }).join(','))
+    ].join('\n');
+
+    const csvBlob = new Blob([csvRows], { type: 'text/csv' });
+    const csvUrl = URL.createObjectURL(csvBlob);
+    const csvLink = document.createElement('a');
+    csvLink.href = csvUrl;
+    csvLink.download = 'activity-records.csv';
+    csvLink.click();
+    URL.revokeObjectURL(csvUrl);
+
+    // 2. Excel (.xlsx) using xlsx library if available
+    try {
+      const XLSX = await import('xlsx');
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Activities');
+      XLSX.writeFile(wb, 'activity-records.xlsx');
+    } catch (err) {
+      console.warn('Excel export failed (make sure xlsx is installed):', err);
+    }
+
+    // 3. PDF via jsPDF + autoTable plugin
+    try {
+      const { jsPDF } = await import('jspdf');
+      await import('jspdf-autotable');
+      const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+      doc.text('Activity Records', 40, 40);
+      const col = csvHeader;
+      const rows = exportData.map(r => col.map(c => r[c as keyof typeof r] || ''));
+      (doc as any).autoTable({ head: [col], body: rows, startY: 60 });
+      doc.save('activity-records.pdf');
+    } catch (err) {
+      console.warn('PDF export failed (install jspdf & jspdf-autotable):', err);
+    }
   };
 
   const handleEditActivity = (activity: Activity) => {
@@ -600,6 +710,7 @@ export function ActivityRecords() {
 
   return (
     <div className="space-y-6">
+      <Toaster position="top-right" />
       {/* Page Header */}
       <div className="flex items-center justify-between pb-4 border-b-2 border-blue-200">
         <div className="flex items-center gap-3">
@@ -609,7 +720,7 @@ export function ActivityRecords() {
             <p className="text-gray-600">Browse and manage all activities - upcoming, ongoing, completed, postponed, and cancelled</p>
           </div>
         </div>
-        <Button onClick={handleExport} className="gap-2">
+        <Button onClick={handleExport} className="gap-2 hover:shadow-lg hover:scale-105 transition-all duration-200">
           <Download className="h-4 w-4" />
           Export Records
         </Button>
@@ -839,14 +950,16 @@ export function ActivityRecords() {
                   <TableRow key={activity.id} className={`hover:bg-gray-50 ${activity.priority === "Urgent" ? "bg-red-50" : ""}`}>
                     <TableCell>
                       <div>
-                        <p className={`text-gray-900 ${activity.priority === "Urgent" ? "font-bold text-red-700" : ""}`}>
-                          {activity.name}
-                          {activity.priority === "Urgent" && (
-                            <span className="ml-2 inline-block px-2 py-0.5 bg-red-200 text-red-800 text-xs font-semibold rounded">
-                              URGENT
-                            </span>
-                          )}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className={`text-gray-900 ${activity.priority === "Urgent" ? "font-bold text-red-700" : ""}`}>
+                            {activity.name}
+                            {activity.priority === "Urgent" && (
+                              <span className="ml-2 inline-block px-2 py-0.5 bg-red-200 text-red-800 text-xs font-semibold rounded">
+                                URGENT
+                              </span>
+                            )}
+                          </p>
+                        </div>
                         <p className="text-sm text-gray-500">{formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}</p>
                       </div>
                     </TableCell>
@@ -890,7 +1003,14 @@ export function ActivityRecords() {
                     <TableCell>
                       {activity.createdBy ? (
                         <div className="text-xs text-gray-700">
-                          <div className="text-gray-900">{activity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase())}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-900">{activity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase())}</span>
+                            {activity.status === "Submission of Documents" && activity.date <= new Date().toISOString().slice(0, 10) && (
+                              <span title="Submission reminder: Please upload attendance and TODA files" className="cursor-help">
+                                <Bell className="h-4 w-4 text-orange-500 animate-pulse" />
+                              </span>
+                            )}
+                          </div>
                         <div className="text-xs text-gray-500" hidden></div>
                         </div>
                       ) : (
@@ -1110,20 +1230,18 @@ export function ActivityRecords() {
                           </DialogContent>
                         </Dialog>
                         
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-2"
-                          onClick={() => handleEditActivity(activity)}
-                          disabled={
-                            activity.status === "Ongoing" ||
-                            activity.status === "Upcoming" ||
-                            user?.idNumber !== activity.createdBy?.idNumber
-                          }
-                        >
-                          <Upload className="h-4 w-4" />
-                          Submit
-                        </Button>
+                        {activity.status === "Submission of Documents" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => handleEditActivity(activity)}
+                            // allow anyone to open submission dialog once status reaches this phase
+                          >
+                            <Upload className="h-4 w-4" />
+                            Submit
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1272,7 +1390,7 @@ export function ActivityRecords() {
             </Button>
             <Button
               onClick={handleSaveChanges}
-              disabled={!!editingActivity && (editingActivity.status === "Ongoing" || editingActivity.status === "Upcoming")}
+              // always allow submission action; validation prevents inappropriate statuses
             >
               Submit
             </Button>

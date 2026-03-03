@@ -24,7 +24,11 @@ interface CalendarViewProps {
   onNavigateToRecords: () => void;
 }
 
-type Activity = CtxActivity;
+// extend context activity with optional province; some components (ActivitiesPerProvince) derive this from location
+// since the API does not include a province field, we compute it when needed
+type Activity = CtxActivity & {
+  province?: string;
+};
 
 export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNavigateToRecords }: CalendarViewProps) {
   const { user } = useAuth();
@@ -66,6 +70,23 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     return () => clearInterval(statusTimer);
   }, []);
 
+
+  // list used when attempting to infer a province from a free‑form location string
+  const FIXED_PROVINCES = [
+    "Davao City",
+    "Davao de Oro",
+    "Davao Oriental",
+    "Davao Occidental",
+    "Davao del Sur",
+    "Davao del Norte",
+  ];
+
+  const inferProvince = (loc: string) => {
+    if (!loc) return "Unknown";
+    const lower = loc.toLowerCase();
+    const matched = FIXED_PROVINCES.find(p => lower.includes(p.toLowerCase()));
+    return matched || loc;
+  };
 
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
@@ -256,7 +277,8 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   const selectedActivities = selectedDate ? activities[formatDateKey(selectedDate)] || [] : [];
 
   // Calculate statistics
-  const allActivities = Object.values(activities).flat();
+  // flatten the context activities and treat them as our extended Activity type
+  const allActivities = Object.values(activities).flat() as Activity[];
   const totalActivities = allActivities.length;
   
   const currentMonth = new Date().getMonth();
@@ -276,11 +298,26 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   
   const participantsThisYear = activitiesThisYear.reduce((sum, activity) => sum + (activity.participants || 0), 0);
 
+  // compute activities per province (infer if not provided)
+  const activitiesByProvince: Record<string, number> = {};
+  // start with zero counts for every known province to ensure cards appear even if empty
+  FIXED_PROVINCES.forEach(p => {
+    activitiesByProvince[p] = 0;
+  });
+  allActivities.forEach(act => {
+    const prov = act.province || inferProvince(act.location);
+    activitiesByProvince[prov] = (activitiesByProvince[prov] || 0) + 1;
+  });
+
+  // build quick stats: total first, then one card per province
   const quickStats = [
     { label: "Total Activities", value: totalActivities.toString(), icon: Clock, color: "bg-blue-500" },
-    { label: "This Month", value: activitiesThisMonth.length.toString(), icon: CalendarPlus, color: "bg-green-500" },
-    { label: "Participants (Month)", value: participantsThisMonth.toLocaleString(), icon: Users, color: "bg-purple-500" },
-    { label: "Participants (Year)", value: participantsThisYear.toLocaleString(), icon: UserCheck, color: "bg-orange-500" },
+    ...Object.entries(activitiesByProvince).map(([prov, count]) => ({
+      label: prov,
+      value: count.toString(),
+      icon: MapPin,
+      color: "bg-green-500",
+    })),
   ];
 
   return (
