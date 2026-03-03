@@ -6,10 +6,10 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
 import { Alert, AlertDescription } from "./ui/alert";
-import { User, Mail, Shield, Calendar, AlertCircle } from "lucide-react";
+import { User, Mail, Shield, Calendar, AlertCircle, LogOut } from "lucide-react";
 
 export function UserProfile() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     firstName: user?.firstName || "",

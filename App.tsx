@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./components/AuthContext";
-import { ActivitiesProvider } from "./components/ActivitiesContext";
+import { ActivitiesProvider, useActivities } from "./components/ActivitiesContext";
 import { LoginPage } from "./components/LoginPage";
 import { SuperadminLoginPage } from "./components/SuperadminLoginPage";
 import { SuperadminDashboard } from "./components/SuperadminDashboard";
@@ -8,20 +8,111 @@ import { CalendarView } from "./components/CalendarView";
 import { ActivityForm } from "./components/ActivityForm";
 import { ActivitiesPerProvince } from "./components/ActivitiesPerProvince";
 import { ActivityRecords } from "./components/ActivityRecords";
+import { DocumentsPage } from "./components/DocumentsPage";
+import { UserProfile } from "./components/UserProfile";
 import { DICTLogo } from "./components/DICTLogo";
 import { Button } from "./components/ui/button";
 import { Badge } from "./components/ui/badge";
 import { Toaster } from "./components/ui/sonner";
-import { ArrowLeft, LogOut, User, Shield } from "lucide-react";
+import { deriveDisplayStatus } from "./components/utils/status";
+import { ArrowLeft, LogOut, User, Shield, LayoutDashboard, FileText, PlusCircle,  Bell   } from "lucide-react";
 // Initialize Firebase (must be imported at app root)
 import "./src/config/firebase";
 
+// Add shake animation styles
+const shakeStyles = `
+  @keyframes shake {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px) rotate(-1deg); }
+    20%, 40%, 60%, 80% { transform: translateX(2px) rotate(1deg); }
+  }
+  .animate-shake {
+    animation: shake 0.5s ease-in-out;
+  }
+`;
+
+// Inject styles
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement('style');
+  styleSheet.textContent = shakeStyles;
+  document.head.appendChild(styleSheet);
+}
+
 function AppContent() {
   const { user, logout, loading } = useAuth();
-  const [currentPage, setCurrentPage] = useState<"calendar" | "activity" | "provinces" | "records">("calendar");
+  const { activities } = useActivities();
+  const [currentPage, setCurrentPage] = useState<"calendar" | "activity" | "provinces" | "records" | "documents" | "profile">("calendar");
+  // debug: log navigation
+  useEffect(() => {
+    console.log("navigated to", currentPage);
+  }, [currentPage]);
   const [prefillDate, setPrefillDate] = useState<string | undefined>(undefined);
+  const [unreadNotifications, setUnreadNotifications] = useState<number>(2);
+  const [showNotifications, setShowNotifications] = useState<boolean>(false);
+  const [triggerShake, setTriggerShake] = useState<number>(0);
   const [isSuperadminMode, setIsSuperadminMode] = useState<boolean | null>(null); // null = checking, true/false = determined
   const [superadminUser, setSuperadminUser] = useState<{username: string} | null>(null);
+
+  // Compute pending activities
+  const pendingActivities = React.useMemo(() => {
+    if (!user || !activities) return [];
+    
+    // Flatten activities from DayActivities
+    const flattened: any[] = Object.values(activities).flat();
+    
+    console.log('Checking pending activities for user:', user.idNumber, 'project:', user.project, 'Total activities:', flattened.length);
+    
+    // Filter for activities with display status "Submission of Documents"
+    return flattened.filter(activity => {
+      // Get the display status (computed based on date/time)
+      const displayStatus = deriveDisplayStatus(activity);
+      
+      if (displayStatus !== "Submission of Documents") return false;
+      
+      // Check if activity belongs to user's project
+      if (activity.project === user.project) {
+        console.log('✓ Found pending activity for project:', activity.name);
+        return true;
+      }
+      
+      // Also check if created by current user
+      if (activity.createdBy?.idNumber === user.idNumber) {
+        console.log('✓ Found pending activity created by user:', activity.name);
+        return true;
+      }
+      
+      // Check if assigned to current user
+      if (activity.assignedPersonnel?.some((ap: any) => ap.idNumber === user.idNumber)) {
+        console.log('✓ Found pending activity assigned to user:', activity.name);
+        return true;
+      }
+      
+      return false;
+    }).sort((a, b) => {
+      // Sort by date descending
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+  }, [activities, user]);
+
+  // Update unread count to match pending activities
+  useEffect(() => {
+    setUnreadNotifications(pendingActivities.length);
+    console.log('Pending activities count:', pendingActivities.length);
+    if (pendingActivities.length > 0) {
+      console.log('Pending activities:', pendingActivities.map(a => a.name));
+    }
+  }, [pendingActivities]);
+
+  // Trigger shake animation periodically
+  useEffect(() => {
+    if (unreadNotifications === 0) return;
+    
+    const shakeInterval = setInterval(() => {
+      setTriggerShake(prev => prev + 1);
+    }, 5000); // Shake every 5 seconds
+    
+    return () => clearInterval(shakeInterval);
+  }, [unreadNotifications]);
 
   // Restore superadmin session on mount/refresh based on localStorage
   useEffect(() => {
@@ -229,32 +320,74 @@ function AppContent() {
             <div className="flex items-center gap-4">
               <DICTLogo className="h-32 w-auto" />
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <div className="flex items-center gap-2 justify-end mb-1">
-                  <p className="text-gray-900">{user.fullName}</p>
-                  <Badge className="bg-blue-600">
-                    <User className="h-3 w-3 mr-1" />
-                    Staff
-                  </Badge>
-                </div>
-                <p className="text-sm text-gray-600">{user.idNumber} • {user.email}</p>
-              </div>
-              <Button
-                variant="outline"
-                onClick={logout}
-                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <LogOut className="h-4 w-4" />
-                Logout
-              </Button>
-            </div>
+
           </div>
         </div>
       </div>
       
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {(currentPage === "activity" || currentPage === "provinces" || currentPage === "records") && (
+      <div className="flex gap-0">
+        <nav className="w-56 bg-gray-50 shadow-lg py-8 px-4 border-r border-gray-200">
+          {/* user summary */}
+          <div className="mb-4 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-blue-500 text-white flex items-center justify-center text-lg font-semibold">
+              {user?.firstName?.[0] || user?.fullName?.[0] || "U"}
+            </div>
+            <div>
+              <p className="font-medium text-gray-900">
+                {user?.firstName || user?.fullName}
+              </p>
+              <p className="text-sm text-gray-600 truncate">
+                {user?.project}
+              </p>
+            </div>
+          </div>
+          <hr className="border-gray-300 my-4" />
+          <ul className="space-y-4">
+            <li>
+              <Button
+                variant="ghost"
+                className={`w-full justify-start gap-2 py-2 rounded-md transition-colors font-medium ${currentPage === "calendar" ? "bg-blue-100 text-blue-700 border-l-4 border-blue-600" : "hover:bg-gray-100"}`}
+                onClick={() => setCurrentPage("calendar")}
+              >
+                <LayoutDashboard className="h-5 w-5" /> Dashboard
+              </Button>
+            </li>
+            <li>
+              <Button
+                variant="ghost"
+                className={`w-full justify-start gap-2 py-2 rounded-md transition-colors font-medium ${currentPage === "documents" ? "bg-blue-100 text-blue-700 border-l-4 border-blue-600" : "hover:bg-gray-100"}`}
+                onClick={() => setCurrentPage("documents")}
+              >
+                <FileText className="h-5 w-5" /> Documents
+              </Button>
+            </li>
+            <li>
+              <Button
+                variant="ghost"
+                className={`w-full justify-start gap-2 py-2 rounded-md transition-colors font-medium ${currentPage === "activity" ? "bg-blue-100 text-blue-700 border-l-4 border-blue-600" : "hover:bg-gray-100"}`}
+                onClick={() => setCurrentPage("activity")}
+              >
+                <PlusCircle className="h-5 w-5" /> Create Activity
+              </Button>
+            </li>
+            <li>
+              <Button
+                variant="ghost"
+                className={`w-full justify-start gap-2 py-2 rounded-md transition-colors font-medium ${currentPage === "profile" ? "bg-blue-100 text-blue-700 border-l-4 border-blue-600" : "hover:bg-gray-100"}`}
+                onClick={() => setCurrentPage("profile")}
+              >
+                <User className="h-5 w-5" /> Profile
+              </Button>
+            </li>
+            <li>
+              <Button variant="ghost" className="w-full justify-start gap-2 text-red-600" onClick={logout}> 
+                <LogOut className="h-5 w-5" /> Logout
+              </Button>
+            </li>
+          </ul>
+        </nav>
+        <main className="flex-grow max-w-screen-xl mx-auto px-0 py-8">
+        {(currentPage === "activity" || currentPage === "provinces" || currentPage === "records" || currentPage === "profile") && (
           <div className="mb-4">
             <Button
               variant="outline"
@@ -265,6 +398,10 @@ function AppContent() {
               Back to Calendar
             </Button>
           </div>
+        )}
+        {/* page heading for clarity when navigating */}
+        {currentPage === "records" && (
+          <h1 className="text-2xl font-semibold mb-6">Activity Records</h1>
         )}
         
         {currentPage === "calendar" && (
@@ -284,10 +421,48 @@ function AppContent() {
             onViewRecords={() => setCurrentPage("records")} 
           />
         )}
+        {currentPage === "profile" && <UserProfile />}
         {currentPage === "provinces" && <ActivitiesPerProvince />}
         {currentPage === "records" && <ActivityRecords />}
+        {currentPage === "documents" && <DocumentsPage />}
+        </main>
+        {/* Notifications panel - fixed on right side */}
+        <div className="fixed top-24 right-6 z-20">
+          <button
+            key={triggerShake}
+            onClick={() => setShowNotifications((s) => !s)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md bg-white border-2 border-gray-200 shadow-lg hover:shadow-2xl hover:border-blue-400 hover:scale-105 transition-all ${unreadNotifications > 0 && triggerShake % 2 === 0 ? 'animate-shake' : ''}`}
+          >
+            <Bell className="h-5 w-5 text-gray-700" />
+            {unreadNotifications > 0 && (
+              <span className="inline-flex items-center justify-center bg-red-600 text-white text-xs font-semibold h-5 w-5 rounded-full">
+                {unreadNotifications}
+              </span>
+            )}
+          </button>
+          {showNotifications && (
+            <div className="absolute top-12 right-0 w-72 bg-white border border-gray-200 shadow-lg rounded-md p-4 z-30">
+              <p className="text-sm font-medium mb-3">Pending Documents ({pendingActivities.length})</p>
+              <ul className="space-y-2 text-sm text-gray-700 max-h-80 overflow-y-auto">
+                {pendingActivities.slice(0, 6).map((activity, index) => (
+                  <li key={activity.id} className="px-2 py-1 rounded hover:bg-gray-50">
+                    <span className="font-semibold">{index + 1}.</span> {activity.name} ({activity.date})
+                  </li>
+                ))}
+                {pendingActivities.length === 0 && (
+                  <li className="px-2 py-1 rounded text-gray-500">No pending documents</li>
+                )}
+              </ul>
+              <div className="mt-3 text-right">
+                <Button variant="link" onClick={() => { setShowNotifications(false); setUnreadNotifications(0); setCurrentPage("records"); }} className="text-xs">
+                  View all
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+       </div>
   );
 }
 
