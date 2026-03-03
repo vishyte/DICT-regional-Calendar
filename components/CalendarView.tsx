@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "./AuthContext";
 import { useActivities, type Activity as CtxActivity, type DayActivities } from "./ActivitiesContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
@@ -26,6 +27,7 @@ interface CalendarViewProps {
 type Activity = CtxActivity;
 
 export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNavigateToRecords }: CalendarViewProps) {
+  const { user } = useAuth();
   const { activities, updateActivity } = useActivities();
   const [currentDate, setCurrentDate] = useState(() => {
     const now = new Date();
@@ -106,6 +108,11 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   };
 
   const handleEditActivity = (activity: Activity) => {
+    // only creator may edit
+    if (user?.idNumber !== activity.createdBy?.idNumber) {
+      toast.error("You can only edit activities you created");
+      return;
+    }
     setEditingActivity(activity);
     setNewDate(activity.date);
     setChangeStatus("");
@@ -269,33 +276,11 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   
   const participantsThisYear = activitiesThisYear.reduce((sum, activity) => sum + (activity.participants || 0), 0);
 
-  const FIXED_PROVINCES = [
-    "Davao de Oro",
-    "Davao del Sur",
-    "Davao del Norte",
-    "Davao Oriental",
-    "Davao Occidental",
-    "Davao City",
-  ];
-
-  const provinceCounts = FIXED_PROVINCES.reduce((acc: Record<string, number>, p) => {
-    acc[p] = 0;
-    return acc;
-  }, {} as Record<string, number>);
-
-  for (const a of allActivities) {
-    const loc = (a.location || "").toString().toLowerCase();
-    for (const p of FIXED_PROVINCES) {
-      if (loc.includes(p.toLowerCase())) {
-        provinceCounts[p] = (provinceCounts[p] || 0) + 1;
-        break;
-      }
-    }
-  }
-
   const quickStats = [
     { label: "Total Activities", value: totalActivities.toString(), icon: Clock, color: "bg-blue-500" },
-    ...FIXED_PROVINCES.map((p) => ({ label: p, value: (provinceCounts[p] || 0).toString(), icon: MapPin, color: "bg-indigo-500" })),
+    { label: "This Month", value: activitiesThisMonth.length.toString(), icon: CalendarPlus, color: "bg-green-500" },
+    { label: "Participants (Month)", value: participantsThisMonth.toLocaleString(), icon: Users, color: "bg-purple-500" },
+    { label: "Participants (Year)", value: participantsThisYear.toLocaleString(), icon: UserCheck, color: "bg-orange-500" },
   ];
 
   return (
@@ -543,7 +528,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     </div>
                     {activity.createdBy && (
                       <div className="text-xs text-gray-600">
-                        Created by {activity.createdBy.fullName.toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
+                        Created by {activity.createdBy.fullName.charAt(0).toUpperCase() + activity.createdBy.fullName.slice(1).toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
                       </div>
                     )}
                     <div className="flex gap-2">
@@ -775,6 +760,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                 <Button
                   onClick={() => handleEditActivity(selectedActivity)}
                   className="bg-blue-600 hover:bg-blue-700 gap-2"
+                  disabled={!(user?.idNumber && selectedActivity?.createdBy?.idNumber === user.idNumber)}
                 >
                   <Edit className="h-4 w-4" />
                   Edit Activity
@@ -845,6 +831,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                   onChange={(e) => setEditTitle(e.target.value)}
                   placeholder="Enter activity title"
                   required
+                  disabled={!(user?.idNumber && editingActivity?.createdBy?.idNumber === user.idNumber)}
                 />
               </div>
 

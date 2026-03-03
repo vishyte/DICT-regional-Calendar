@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { useAuth } from "./AuthContext";
 import { useActivities } from "./ActivitiesContext";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
@@ -54,6 +55,7 @@ interface Activity {
 
 export function ActivityRecords() {
   const { activities: calendarActivities } = useActivities();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [selectedProvince, setSelectedProvince] = useState<string>("all");
@@ -505,6 +507,11 @@ export function ActivityRecords() {
   };
 
   const handleEditActivity = (activity: Activity) => {
+    // only creator can submit/upload files for that activity
+    if (user?.idNumber !== activity.createdBy?.idNumber) {
+      alert("Only the creator may submit documents for this activity.");
+      return;
+    }
     setEditingActivity(activity);
     setParticipantCount(activity.participants || 0);
     setAttendanceFile(null);
@@ -1108,7 +1115,11 @@ export function ActivityRecords() {
                           size="sm"
                           className="gap-2"
                           onClick={() => handleEditActivity(activity)}
-                          disabled={activity.status === "Ongoing" || activity.status === "Upcoming"}
+                          disabled={
+                            activity.status === "Ongoing" ||
+                            activity.status === "Upcoming" ||
+                            user?.idNumber !== activity.createdBy?.idNumber
+                          }
                         >
                           <Upload className="h-4 w-4" />
                           Submit

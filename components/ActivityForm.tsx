@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { useActivities } from "./ActivitiesContext";
 import { useAuth } from "./AuthContext";
 import { toast } from "sonner";
+import { usersAPI } from "../utils/api";
 import { sendActivityEmail } from "./utils/emailService";
 
 export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSubmitted?: () => void; onViewRecords?: () => void; prefillDate?: string }) {
@@ -175,35 +176,34 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
 
   // After mounting, attempt to load users from backend as well and merge
   useEffect(() => {
-    import("../utils/api").then(({ usersAPI }) => {
-      usersAPI.getAll().then(res => {
-        const backendUsers = (res.data || []).map((u: any) => ({
-          idNumber: u.idNumber || u.username || String(u.id || ""),
-          fullName: u.fullName || `${u.first_name || ""}${u.middle_name ? " " + u.middle_name : ""} ${u.last_name || ""}`.trim(),
-          email: u.email || "",
-        }));
-        // merge with local personnel and dedupe by idNumber
-        const combined = [...getLocalPersonnel(), ...backendUsers];
-        const unique: Record<string, Personnel> = {};
-        combined.forEach(p => {
-          if (p.idNumber) unique[p.idNumber] = p;
-        });
-        const merged = Object.values(unique);
-        setAllPersonnel(merged);
-        // also update local storage
-        try {
-          const storageUsers = merged.map(p => ({
-            username: p.idNumber,
-            email: p.email,
-            first_name: p.fullName.split(" ")[0] || "",
-            middle_name: p.fullName.split(" ")[1] || "",
-            last_name: p.fullName.split(" ").slice(2).join(" ") || "",
-          }));
-          localStorage.setItem('local_users', JSON.stringify(storageUsers));
-        } catch {}
-      }).catch(e => {
-        console.error("Failed to fetch backend users", e);
+    usersAPI.getAll().then(res => {
+      console.log("fetched backend users", res.data);
+      const backendUsers = (res.data || []).map((u: any) => ({
+        idNumber: u.idNumber || u.username || String(u.id || ""),
+        fullName: u.fullName || `${u.first_name || ""}${u.middle_name ? " " + u.middle_name : ""} ${u.last_name || ""}`.trim(),
+        email: u.email || "",
+      }));
+      // merge with local personnel and dedupe by idNumber
+      const combined = [...getLocalPersonnel(), ...backendUsers];
+      const unique: Record<string, Personnel> = {};
+      combined.forEach(p => {
+        if (p.idNumber) unique[p.idNumber] = p;
       });
+      const merged = Object.values(unique);
+      setAllPersonnel(merged);
+      // also update local storage
+      try {
+        const storageUsers = merged.map(p => ({
+          username: p.idNumber,
+          email: p.email,
+          first_name: p.fullName.split(" ")[0] || "",
+          middle_name: p.fullName.split(" ")[1] || "",
+          last_name: p.fullName.split(" ").slice(2).join(" ") || "",
+        }));
+        localStorage.setItem('local_users', JSON.stringify(storageUsers));
+      } catch {}
+    }).catch(e => {
+      console.error("Failed to fetch backend users", e);
     });
   }, []);
 
@@ -1091,6 +1091,9 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                   </SelectContent>
                 </Select>
                 
+                {allPersonnel.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-1">(no users available - please register users first or ensure backend is reachable)</p>
+                )}
                 {assignedPersonnel.length > 0 && (
                   <div className="space-y-2 mt-3">
                     {assignedPersonnel.map((person: { idNumber: string; fullName: string; task: string }) => (
