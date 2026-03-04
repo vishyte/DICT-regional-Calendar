@@ -26,7 +26,7 @@ export interface Activity {
   description?: string;
   participants?: number;
   facilitator?: string;
-  status: 'Scheduled' | 'Completed' | 'Postponed' | 'Cancelled';
+  status: 'Scheduled' | 'Completed' | 'Postponed' | 'Cancelled' | 'Rejected';
   change_reason?: string;
   change_date?: string;
   created_by_id: number;
@@ -36,6 +36,17 @@ export interface Activity {
   platform?: string;
   created_at: Date;
   updated_at: Date;
+  // Approval fields
+  approved_by_id?: number;
+  approved_at?: string;
+  approval_notes?: string;
+  // File submission columns
+  attendance_file_name?: string;
+  attendance_upload_date?: string;
+  attendance_file_data?: Buffer;
+  toda_file_name?: string;
+  toda_upload_date?: string;
+  toda_file_data?: Buffer;
 }
 
 export interface AssignedPersonnel {

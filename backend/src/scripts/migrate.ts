@@ -45,9 +45,13 @@ async function createTables() {
         partner_institution VARCHAR(255),
         mode VARCHAR(50),
         platform VARCHAR(255),
+        approved_by_id INTEGER,
+        approved_at DATETIME,
+        approval_notes TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (created_by_id) REFERENCES users(id)
+        FOREIGN KEY (created_by_id) REFERENCES users(id),
+        FOREIGN KEY (approved_by_id) REFERENCES users(id)
       )
     `);
 
@@ -88,6 +92,32 @@ async function createTables() {
     } catch (err) {
       // Non-fatal: log and continue
       console.warn('Could not ensure role column exists:', err);
+    }
+
+// Ensure approval columns exist on activities table for upgrades
+    try {
+      const pragma = await pool.query("PRAGMA table_info(activities)");
+      const cols = pragma.rows.map((r: any) => r.name);
+      if (!cols.includes('approved_by_id')) {
+        await pool.query("ALTER TABLE activities ADD COLUMN approved_by_id INTEGER");
+        await pool.query("ALTER TABLE activities ADD COLUMN approved_at DATETIME");
+        await pool.query("ALTER TABLE activities ADD COLUMN approval_notes TEXT");
+        console.log('✅ Added approval columns to activities table');
+      }
+      // Add document upload columns if they don't exist
+      if (!cols.includes('attendance_file_name')) {
+        await pool.query("ALTER TABLE activities ADD COLUMN attendance_file_name TEXT");
+        await pool.query("ALTER TABLE activities ADD COLUMN attendance_upload_date DATETIME");
+        // SQLite stores blobs as BLOB, we'll create a generic column and let code treat it accordingly
+        await pool.query("ALTER TABLE activities ADD COLUMN attendance_file_data BLOB");
+        await pool.query("ALTER TABLE activities ADD COLUMN toda_file_name TEXT");
+        await pool.query("ALTER TABLE activities ADD COLUMN toda_upload_date DATETIME");
+        await pool.query("ALTER TABLE activities ADD COLUMN toda_file_data BLOB");
+        console.log('✅ Added document upload columns to activities table');
+      }
+    } catch (err) {
+      // Non-fatal: log and continue
+      console.warn('Could not ensure approval columns exist:', err);
     }
   } catch (error) {
     console.error('❌ Error creating tables:', error);

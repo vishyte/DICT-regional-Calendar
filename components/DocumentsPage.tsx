@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useActivities } from "./ActivitiesContext";
 import { useAuth } from "./AuthContext";
 import { deriveDisplayStatus } from "./utils/status";
+import { activitiesAPI } from "../utils/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -10,23 +11,27 @@ import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { AlertCircle, CheckCircle2, Upload, FileUp } from "lucide-react";
+import { AlertCircle, CheckCircle2, Upload, FileUp, CheckCircle, XCircle } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 export function DocumentsPage() {
-  const { activities, updateActivity } = useActivities();
+  const { activities, updateActivity, uploadDocuments } = useActivities();
   const { user } = useAuth();
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState<boolean>(false);
   const [selectedActivity, setSelectedActivity] = useState<any>(null);
+  const [approvalNotes, setApprovalNotes] = useState<string>("");
+  const [approvalAction, setApprovalAction] = useState<"approve" | "reject">("approve");
+  const [approvingLoading, setApprovingLoading] = useState(false);
   const [attendanceFile, setAttendanceFile] = useState<File | null>(null);
   const [todaFile, setTodaFile] = useState<File | null>(null);
   const [participantCount, setParticipantCount] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
-  // Get all activities and filter for pending and completed
+  // Get all activities and filter for pending, approval, and completed
   const groupedActivities = useMemo(() => {
-    if (!user || !activities) return { pending: [], completed: [] };
+    if (!user || !activities) return { pending: [], forApproval: [], completed: [] };
 
     const flattened: any[] = Object.values(activities).flat();
 
@@ -40,6 +45,12 @@ export function DocumentsPage() {
       if (activity.assignedPersonnel?.some((ap: any) => ap.idNumber === user.idNumber)) return true;
 
       return false;
+    });
+
+    const forApproval = flattened.filter(activity => {
+      const displayStatus = deriveDisplayStatus(activity);
+      if (displayStatus !== "For Approval") return false;
+return activity.project === user.project;
     });
 
     const completed = flattened.filter(activity => {
@@ -56,9 +67,14 @@ export function DocumentsPage() {
 
     return {
       pending: pending.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+      forApproval: forApproval.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
       completed: completed.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     };
   }, [activities, user]);
+
+  // Check if user is admin or superadmin only - staff should not see approval section
+  // Handle case where user.role might be undefined (for local users)
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -74,31 +90,75 @@ export function DocumentsPage() {
     setDialogOpen(true);
   };
 
-  const handleSubmitFiles = async () => {
+  const handleOpenApprovalDialog = (activity: any, action: "approve" | "reject") => {
+    setSelectedActivity(activity);
+    setApprovalAction(action);
+    setApprovalNotes("");
+    setApprovalDialogOpen(true);
+  };
+
+const handleSubmitFiles = async () => {
     if (!selectedActivity) return;
 
     setSubmittingId(selectedActivity.id);
     try {
-      // Update activity with submitted documents
-      await updateActivity(selectedActivity.id, {
-        status: "Completed",
-        attendanceFileName: attendanceFile?.name || "",
-        attendanceUploadDate: new Date().toISOString(),
-        todaFileName: todaFile?.name || "",
-        todaUploadDate: new Date().toISOString(),
-        participants: participantCount ? parseInt(participantCount) : selectedActivity.participants,
-        notes: notes || selectedActivity.notes
-      });
+      let activityId: number;
+      const idStr = String(selectedActivity.id);
+      if (idStr.startsWith('cal-')) {
+        activityId = parseInt(idStr.replace(/^cal-/, ''));
+      } else {
+        activityId = parseInt(idStr);
+      }
+
+      if (isNaN(activityId)) {
+        throw new Error("Invalid activity ID");
+      }
+
+      // use uploadDocuments helper to send files and participant count
+      await uploadDocuments(
+        activityId,
+        attendanceFile || undefined,
+        todaFile || undefined,
+        participantCount ? parseInt(participantCount) : undefined
+      );
+
       toast.success(`✅ ${selectedActivity.name}`, {
-        description: "Documents submitted successfully",
+        description: "Documents submitted successfully. Waiting for approval.",
         duration: 3000
       });
       setDialogOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting documents:', error);
-      toast.error("Failed to submit documents. Please try again.");
+      toast.error(error.message || "Failed to submit documents. Please try again.");
     } finally {
       setSubmittingId(null);
+    }
+  };
+
+  const handleApproval = async () => {
+    if (!selectedActivity) return;
+    
+    setApprovingLoading(true);
+    try {
+      if (approvalAction === "approve") {
+        await activitiesAPI.approve(selectedActivity.id, approvalNotes);
+        toast.success("Activity approved successfully!");
+      } else {
+        await activitiesAPI.reject(selectedActivity.id, approvalNotes);
+        toast.error("Activity rejected");
+      }
+      
+      setApprovalDialogOpen(false);
+      setSelectedActivity(null);
+      setApprovalNotes("");
+      
+      // Refresh activities
+      window.location.reload();
+    } catch (error: any) {
+      console.error("Approval error:", error);
+      toast.error(error.response?.data?.error || "Failed to process approval");
+    } finally {
+      setApprovingLoading(false);
     }
   };
 
@@ -164,6 +224,75 @@ export function DocumentsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Approval of Documents Section - Only for Admins (admin or superadmin role) */}
+      {isAdmin && (
+        <Card className="border-purple-200 bg-purple-50">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-purple-600" />
+              <CardTitle className="text-purple-800">Approval of Documents ({groupedActivities.forApproval.length})</CardTitle>
+            </div>
+            <CardDescription>Activities awaiting approval after document submission</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {groupedActivities.forApproval.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Activity Name</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Created By</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {groupedActivities.forApproval.map((activity) => (
+                      <TableRow key={activity.id} className="hover:bg-purple-100">
+                        <TableCell className="font-medium">{activity.name}</TableCell>
+                        <TableCell>{activity.project}</TableCell>
+                        <TableCell>{formatDate(activity.date)}</TableCell>
+                        <TableCell>{activity.createdBy?.fullName || "—"}</TableCell>
+                        <TableCell>
+                          <Badge className="bg-purple-600 hover:bg-purple-700">For Approval</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={() => handleOpenApprovalDialog(activity, "approve")}
+                              size="sm"
+                              className="gap-2 bg-green-600 hover:bg-green-700"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                              Approve
+                            </Button>
+                            <Button 
+                              onClick={() => handleOpenApprovalDialog(activity, "reject")}
+                              size="sm"
+                              variant="destructive"
+                              className="gap-2"
+                            >
+                              <XCircle className="h-4 w-4" />
+                              Reject
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-purple-700">
+                <p>No activities awaiting approval</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Completed Documents Section */}
       <Card className="border-green-200 bg-green-50">
@@ -272,7 +401,7 @@ export function DocumentsPage() {
                   className="cursor-pointer"
                 />
                 {attendanceFile && (
-                  <div className="flex items-center gap-2 text-sm text-blue-600">
+<div className="flex items-center gap-2 text-sm text-blue-600">
                     <FileUp className="h-4 w-4" />
                     <span>New file: {attendanceFile.name}</span>
                   </div>
@@ -331,6 +460,63 @@ export function DocumentsPage() {
             >
               <Upload className="h-4 w-4" />
               {submittingId === selectedActivity?.id ? 'Submitting...' : 'Submit'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approval Dialog */}
+      <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {approvalAction === "approve" ? "Approve Activity" : "Reject Activity"}
+            </DialogTitle>
+            <DialogDescription>
+              {approvalAction === "approve" 
+                ? "Are you sure you want to approve this activity? It will be marked as Completed."
+                : "Please provide a reason for rejecting this activity."}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedActivity && (
+            <div className="space-y-4 py-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Activity Name</p>
+                <p className="text-gray-900">{selectedActivity.name}</p>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Project</p>
+                <p className="text-gray-900">{selectedActivity.project}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="approval-notes">
+                  {approvalAction === "approve" ? "Notes (optional)" : "Reason for rejection *"}
+                </Label>
+                <Input
+                  id="approval-notes"
+                  value={approvalNotes}
+                  onChange={(e) => setApprovalNotes(e.target.value)}
+                  placeholder={approvalAction === "approve" 
+                    ? "Add any notes about this approval..." 
+                    : "Explain why this activity is being rejected..."}
+                />
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApprovalDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleApproval}
+              disabled={approvingLoading || (approvalAction === "reject" && !approvalNotes.trim())}
+              className={approvalAction === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
+            >
+              {approvingLoading ? "Processing..." : approvalAction === "approve" ? "Approve" : "Reject"}
             </Button>
           </DialogFooter>
         </DialogContent>

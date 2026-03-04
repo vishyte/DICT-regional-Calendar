@@ -44,17 +44,17 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields' });
         }
         // Check if user exists
-        const existingUser = database_1.default.query('SELECT id FROM users WHERE username = ? OR email = ?', [username, email]);
+        const existingUser = await database_1.default.query('SELECT id FROM users WHERE username = ? OR email = ?', [username, email]);
         if (existingUser.rows.length > 0) {
             return res.status(400).json({ error: 'Username or email already exists' });
         }
         // Hash password
         const passwordHash = await bcryptjs_1.default.hash(password, 10);
-        // Insert user
-        const result = database_1.default.query(`INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`, [username, email, passwordHash, firstName, middleName || null, lastName, project]);
-        // Fetch inserted user
-        const userResult = database_1.default.query('SELECT id, username, email, first_name, middle_name, last_name, project FROM users WHERE username = ?', [username]);
+        // Insert user (default role = 'user')
+        const result = await database_1.default.query(`INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project, role)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, [username, email, passwordHash, firstName, middleName || null, lastName, project, 'user']);
+        // Fetch inserted user (include role)
+        const userResult = await database_1.default.query('SELECT id, username, email, first_name, middle_name, last_name, project, role FROM users WHERE id = ?', [result.rows[0]?.id]);
         const user = userResult.rows[0];
         if (!user) {
             return res.status(500).json({ error: 'User registration completed but failed to retrieve user data' });
@@ -105,7 +105,7 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
-        const result = database_1.default.query('SELECT * FROM users WHERE username = ?', [username]);
+        const result = await database_1.default.query('SELECT * FROM users WHERE username = ?', [username]);
         if (result.rows.length === 0) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
@@ -115,7 +115,7 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
         const jwtSecret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-        const token = jsonwebtoken_1.default.sign({ id: user.id, username: user.username, email: user.email }, jwtSecret, { expiresIn: '24h' });
+        const token = jsonwebtoken_1.default.sign({ id: user.id, username: user.username, email: user.email, role: user.role || 'user' }, jwtSecret, { expiresIn: '24h' });
         res.json({
             token,
             user: {
@@ -127,7 +127,8 @@ router.post('/login', async (req, res) => {
                 lastName: user.last_name,
                 idNumber: user.username,
                 email: user.email,
-                project: user.project
+                project: user.project,
+                role: user.role || 'user'
             }
         });
     }
@@ -139,7 +140,7 @@ router.post('/login', async (req, res) => {
 // Get current user profile
 router.get('/profile', middleware_1.authenticateToken, async (req, res) => {
     try {
-        const result = database_1.default.query('SELECT id, username, email, first_name, middle_name, last_name, project FROM users WHERE id = ?', [req.user.id]);
+        const result = await database_1.default.query('SELECT id, username, email, first_name, middle_name, last_name, project, role FROM users WHERE id = ?', [req.user.id]);
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
@@ -153,7 +154,8 @@ router.get('/profile', middleware_1.authenticateToken, async (req, res) => {
             lastName: user.last_name,
             idNumber: user.username,
             email: user.email,
-            project: user.project
+            project: user.project,
+            role: user.role || 'user'
         });
     }
     catch (error) {
@@ -186,7 +188,7 @@ router.post('/recover-backups', async (req, res) => {
                     const tempPassword = Math.random().toString(36).slice(-8);
                     const passwordHash = await bcryptjs_1.default.hash(tempPassword, 10);
                     // Try to insert the user
-                    database_1.default.query(`INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project)
+                    await database_1.default.query(`INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project)
              VALUES (?, ?, ?, ?, ?, ?, ?)`, [backupData.username, backupData.email, passwordHash, backupData.firstName,
                         backupData.middleName || null, backupData.lastName, backupData.project]);
                     // Move file to processed folder
@@ -279,7 +281,7 @@ router.post('/superadmin/login', async (req, res) => {
 // Get all users (for superadmin)
 router.get('/all', middleware_1.authenticateToken, async (req, res) => {
     try {
-        const result = database_1.default.query(`SELECT id, username, email, first_name, middle_name, last_name, project, created_at 
+        const result = await database_1.default.query(`SELECT id, username, email, first_name, middle_name, last_name, project, role, created_at 
        FROM users 
        ORDER BY created_at DESC`);
         const users = result.rows.map((user) => ({
@@ -288,7 +290,7 @@ router.get('/all', middleware_1.authenticateToken, async (req, res) => {
             fullName: `${user.first_name} ${user.middle_name ? user.middle_name + ' ' : ''}${user.last_name}`,
             email: user.email,
             project: user.project,
-            role: 'user', // Default role, can be extended later
+            role: user.role || 'user',
             createdAt: user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             status: 'active'
         }));
@@ -316,17 +318,17 @@ router.post('/', middleware_1.authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'Full name must include at least first and last name' });
         }
         // Check if user exists
-        const existingUser = database_1.default.query('SELECT id FROM users WHERE username = ? OR email = ?', [username, email]);
+        const existingUser = await database_1.default.query('SELECT id FROM users WHERE username = ? OR email = ?', [username, email]);
         if (existingUser.rows.length > 0) {
             return res.status(400).json({ error: 'Username or email already exists' });
         }
         // Hash password
         const passwordHash = await bcryptjs_1.default.hash(password, 10);
-        // Insert user
-        database_1.default.query(`INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`, [username, email, passwordHash, firstName, middleName || null, lastName, project]);
+        // Insert user (include role)
+        const result = await database_1.default.query(`INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project, role)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, [username, email, passwordHash, firstName, middleName || null, lastName, project, role || 'user']);
         // Fetch inserted user
-        const userResult = database_1.default.query('SELECT id, username, email, first_name, middle_name, last_name, project, created_at FROM users WHERE username = ?', [username]);
+        const userResult = await database_1.default.query('SELECT id, username, email, first_name, middle_name, last_name, project, role, created_at FROM users WHERE id = ?', [result.rows[0]?.id]);
         const user = userResult.rows[0];
         if (!user) {
             return res.status(500).json({ error: 'User creation completed but failed to retrieve user data' });
@@ -337,7 +339,7 @@ router.post('/', middleware_1.authenticateToken, async (req, res) => {
             fullName: `${user.first_name} ${user.middle_name ? user.middle_name + ' ' : ''}${user.last_name}`,
             email: user.email,
             project: user.project,
-            role: role || 'user',
+            role: user.role || role || 'user',
             createdAt: user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             status: 'active'
         });
@@ -356,8 +358,9 @@ router.put('/:id', middleware_1.authenticateToken, async (req, res) => {
     try {
         const userId = parseInt(req.params.id);
         const { username, email, fullName, project, role, password } = req.body;
+        console.log(`PUT /users/${userId} payload:`, { username, email, fullName, project, role, password: password ? '[REDACTED]' : undefined });
         // Check if user exists
-        const existingUser = database_1.default.query('SELECT id FROM users WHERE id = ?', [userId]);
+        const existingUser = await database_1.default.query('SELECT id FROM users WHERE id = ?', [userId]);
         if (existingUser.rows.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
@@ -374,7 +377,7 @@ router.put('/:id', middleware_1.authenticateToken, async (req, res) => {
         const params = [];
         if (username) {
             // Check if username is already taken by another user
-            const usernameCheck = database_1.default.query('SELECT id FROM users WHERE username = ? AND id != ?', [username, userId]);
+            const usernameCheck = await database_1.default.query('SELECT id FROM users WHERE username = ? AND id != ?', [username, userId]);
             if (usernameCheck.rows.length > 0) {
                 return res.status(400).json({ error: 'Username already taken' });
             }
@@ -383,7 +386,7 @@ router.put('/:id', middleware_1.authenticateToken, async (req, res) => {
         }
         if (email) {
             // Check if email is already taken by another user
-            const emailCheck = database_1.default.query('SELECT id FROM users WHERE email = ? AND id != ?', [email, userId]);
+            const emailCheck = await database_1.default.query('SELECT id FROM users WHERE email = ? AND id != ?', [email, userId]);
             if (emailCheck.rows.length > 0) {
                 return res.status(400).json({ error: 'Email already taken' });
             }
@@ -411,14 +414,19 @@ router.put('/:id', middleware_1.authenticateToken, async (req, res) => {
             updates.push('password_hash = ?');
             params.push(passwordHash);
         }
+        if (role) {
+            updates.push('role = ?');
+            params.push(role);
+        }
         if (updates.length === 0) {
             return res.status(400).json({ error: 'No fields to update' });
         }
         updates.push('updated_at = CURRENT_TIMESTAMP');
         params.push(userId);
-        database_1.default.query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
-        // Fetch updated user
-        const userResult = database_1.default.query('SELECT id, username, email, first_name, middle_name, last_name, project, created_at FROM users WHERE id = ?', [userId]);
+        await database_1.default.query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+        console.log(`Executed UPDATE users for id=${userId} with updates: ${updates.join(', ')}`);
+        // Fetch updated user (include role)
+        const userResult = await database_1.default.query('SELECT id, username, email, first_name, middle_name, last_name, project, role, created_at FROM users WHERE id = ?', [userId]);
         const user = userResult.rows[0];
         if (!user) {
             return res.status(404).json({ error: 'User not found after update' });
@@ -429,7 +437,7 @@ router.put('/:id', middleware_1.authenticateToken, async (req, res) => {
             fullName: `${user.first_name} ${user.middle_name ? user.middle_name + ' ' : ''}${user.last_name}`,
             email: user.email,
             project: user.project,
-            role: role || 'user',
+            role: user.role || role || 'user',
             createdAt: user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             status: 'active'
         });
@@ -444,12 +452,20 @@ router.delete('/:id', middleware_1.authenticateToken, async (req, res) => {
     try {
         const userId = parseInt(req.params.id);
         // Check if user exists
-        const existingUser = database_1.default.query('SELECT id FROM users WHERE id = ?', [userId]);
+        const existingUser = await database_1.default.query('SELECT id FROM users WHERE id = ?', [userId]);
         if (existingUser.rows.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
+        // Nullify any activities.created_by_id referencing this user to avoid FK constraint errors
+        try {
+            await database_1.default.query('UPDATE activities SET created_by_id = NULL WHERE created_by_id = ?', [userId]);
+            console.log(`Cleared created_by_id for activities referencing user id=${userId}`);
+        }
+        catch (err) {
+            console.warn('Failed to clear activity references before deleting user:', err);
+        }
         // Delete user
-        database_1.default.query('DELETE FROM users WHERE id = ?', [userId]);
+        await database_1.default.query('DELETE FROM users WHERE id = ?', [userId]);
         res.json({ message: 'User deleted successfully' });
     }
     catch (error) {

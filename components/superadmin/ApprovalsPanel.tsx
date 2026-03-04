@@ -226,7 +226,7 @@ export function ApprovalsPanel() {
                             <FileText className="h-4 w-4 text-blue-600" />
                             {activity.attendanceFileName ? (
                               <a
-                                href={activity.attendanceFile}
+                                href={`/api/activities/${activity.id}/file/attendance`}
                                 download={activity.attendanceFileName}
                                 className="text-blue-600 hover:underline"
                               >
@@ -242,7 +242,7 @@ export function ApprovalsPanel() {
                             <FileText className="h-4 w-4 text-blue-600" />
                             {activity.todaFileName ? (
                               <a
-                                href={activity.todaFile}
+                                href={`/api/activities/${activity.id}/file/toda`}
                                 download={activity.todaFileName}
                                 className="text-blue-600 hover:underline"
                               >

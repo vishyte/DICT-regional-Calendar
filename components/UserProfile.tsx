@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
+import { usersAPI } from "../utils/api";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -9,7 +10,7 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { User, Mail, Shield, Calendar, AlertCircle, LogOut } from "lucide-react";
 
 export function UserProfile() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUserProfile, refreshUserProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     firstName: user?.firstName || "",
@@ -19,6 +20,25 @@ export function UserProfile() {
     username: user?.idNumber || "",
     project: user?.project || ""
   });
+  
+  // Refresh user profile from backend when component mounts to get latest role info
+  useEffect(() => {
+    refreshUserProfile();
+  }, []);
+
+  // Update formData when user data changes (e.g., after profile refresh)
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        firstName: user.firstName || "",
+        middleName: user.middleName || "",
+        lastName: user.lastName || "",
+        email: user.email || "",
+        username: user.idNumber || "",
+        project: user.project || ""
+      });
+    }
+  }, [user]);
   const projects = [
     "IIDB",
     "Free Wi-Fi for All",
@@ -34,6 +54,8 @@ export function UserProfile() {
     "Technical Operations Division"
   ];
   const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -45,11 +67,44 @@ export function UserProfile() {
     }));
   };
 
-  const handleSaveProfile = () => {
-    // In a real app, this would send data to the backend
-    setSuccessMessage("Profile updated successfully!");
-    setIsEditing(false);
-    setTimeout(() => setSuccessMessage(""), 3000);
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    
+    setIsSaving(true);
+    setErrorMessage("");
+    
+    try {
+      // Prepare the data to send to the backend
+      const updateData = {
+        fullName: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim(),
+        project: formData.project,
+        email: formData.email
+      };
+
+      // Call the backend API to update the user profile
+      const response = await usersAPI.update(user.id, updateData);
+      
+      if (response.data) {
+        // Update the user context with the new data
+        updateUserProfile({
+          firstName: formData.firstName,
+          middleName: formData.middleName,
+          lastName: formData.lastName,
+          email: formData.email,
+          project: formData.project,
+          fullName: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim()
+        });
+        
+        setSuccessMessage("Profile updated successfully!");
+        setIsEditing(false);
+        setTimeout(() => setSuccessMessage(""), 3000);
+      }
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      setErrorMessage(error.response?.data?.error || "Failed to update profile. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -87,6 +142,16 @@ export function UserProfile() {
         </Alert>
       )}
 
+      {/* Error Message */}
+      {errorMessage && (
+        <Alert className="bg-red-50 border-red-200">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">
+            {errorMessage}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Profile Card */}
       <Card className="border-0 shadow-lg">
         <CardHeader className="border-b border-gray-200">
@@ -105,8 +170,9 @@ export function UserProfile() {
                   <Button
                     onClick={handleSaveProfile}
                     className="bg-green-600 hover:bg-green-700"
+                    disabled={isSaving}
                   >
-                    Save Changes
+                    {isSaving ? "Saving..." : "Save Changes"}
                   </Button>
                   <Button
                     onClick={handleCancel}
@@ -273,10 +339,14 @@ export function UserProfile() {
                 <Shield className="h-5 w-5 text-blue-600" />
                 <div>
                   <p className="font-medium text-blue-900">Account Role</p>
-                  <p className="text-sm text-blue-700">Staff Member</p>
+                  <p className="text-sm text-blue-700">
+                    {user?.role === 'admin' ? 'Project Admin' : user?.role === 'superadmin' ? 'Super Administrator' : 'Staff Member'}
+                  </p>
                 </div>
               </div>
-              <Badge className="bg-blue-600">Staff</Badge>
+              <Badge className={user?.role === 'admin' ? 'bg-purple-600' : user?.role === 'superadmin' ? 'bg-red-600' : 'bg-blue-600'}>
+                {user?.role === 'admin' ? 'Admin' : user?.role === 'superadmin' ? 'Superadmin' : 'Staff'}
+              </Badge>
             </div>
 
             <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">

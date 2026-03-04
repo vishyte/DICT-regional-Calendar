@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { useActivities } from "./ActivitiesContext";
+import { activitiesAPI } from "../utils/api";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -10,7 +11,7 @@ import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "./ui/dialog";
 import { Label } from "./ui/label";
-import { Search, Filter, Download, Eye, Calendar, Users, Clock, FileText, Upload, AlertCircle, Bell } from "lucide-react";
+import { Search, Filter, Download, Eye, Calendar, Users, Clock, FileText, Upload, AlertCircle, Bell, CheckCircle, XCircle } from "lucide-react";
 import { formatTimeDisplay } from "./utils/timeFormat";
 import { deriveDisplayStatus } from "./utils/status";
 import { Alert, AlertDescription } from "./ui/alert";
@@ -28,7 +29,7 @@ interface Activity {
   timeEnd: string;
   duration: string;
   targetSector: string[];
-  location?: string; // added so ActivityRecords and others can reference location
+  location?: string;
   province: string;
   district: string;
   barangay: string;
@@ -57,7 +58,7 @@ interface Activity {
 }
 
 export function ActivityRecords() {
-  const { activities: calendarActivities } = useActivities();
+  const { activities: calendarActivities, uploadDocuments, updateActivity } = useActivities();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProject, setSelectedProject] = useState<string>("all");
@@ -72,12 +73,19 @@ export function ActivityRecords() {
   const [todaFile, setTodaFile] = useState<File | null>(null);
   const [todaFileName, setTodaFileName] = useState<string>("");
   const [, setRefreshCounter] = useState(0);
+  
+  // Approval dialog state
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
+  const [approvingActivity, setApprovingActivity] = useState<Activity | null>(null);
+  const [approvalNotes, setApprovalNotes] = useState("");
+  const [approvalAction, setApprovalAction] = useState<"approve" | "reject">("approve");
+  const [approvingLoading, setApprovingLoading] = useState(false);
 
   // Real-time status update - refresh every minute
   useEffect(() => {
     const timer = setInterval(() => {
       setRefreshCounter(prev => prev + 1);
-    }, 60000); // Update every 60 seconds
+    }, 60000);
     return () => clearInterval(timer);
   }, []);
 
@@ -104,7 +112,6 @@ export function ActivityRecords() {
     "Davao Oriental"
   ];
 
-  // Mock data for past activities
   const [activities, setActivities] = useState<Activity[]>([
     {
       id: "0",
@@ -439,7 +446,6 @@ export function ActivityRecords() {
     },
   ]);
 
-  // Map calendar/context activities into records shape (participants default 0, status Upcoming)
   const mappedFromCalendar = useMemo(() => {
     const out: Activity[] = [];
     for (const [dateKey, items] of Object.entries(calendarActivities)) {
@@ -474,43 +480,35 @@ export function ActivityRecords() {
   }, [calendarActivities, setRefreshCounter]);
 
   const combinedActivities = useMemo(() => {
-    // Show only activities that exist in the calendar context
     return mappedFromCalendar;
   }, [mappedFromCalendar, setRefreshCounter]);
 
-  // Check for ended activities and send notification reminders
   useEffect(() => {
     const checkEndedActivities = () => {
       const today = new Date().toISOString().slice(0, 10);
       
       combinedActivities.forEach((activity) => {
-        // Only notify for activities created by the current user
         if (user?.idNumber !== activity.createdBy?.idNumber) return;
         
-        // Check if activity has ended (date is today or in the past)
         if (activity.date <= today) {
-          // Only notify if status is "Submission of Documents" (not already submitted)
           if (activity.status === "Submission of Documents" && !sessionStorage.getItem(`notified-${activity.id}`)) {
             toast.info(`📋 ${activity.name}`, {
               description: "Activity ended. Please submit your attendance and TODA files to complete the record.",
               icon: <Bell className="h-4 w-4 text-blue-500" />,
               duration: 10000,
             });
-            // Mark this activity as notified so we don't show the notification again
             sessionStorage.setItem(`notified-${activity.id}`, "true");
           }
         }
       });
     };
 
-    // Check on component mount and when activities change
     checkEndedActivities();
-    const notificationTimer = setInterval(checkEndedActivities, 300000); // Check every 5 minutes
+    const notificationTimer = setInterval(checkEndedActivities, 300000);
 
     return () => clearInterval(notificationTimer);
   }, [combinedActivities, user]);
 
-  // Filter activities
   const filteredActivities = combinedActivities.filter(activity => {
     const matchesSearch = activity.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          activity.barangay.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -524,7 +522,6 @@ export function ActivityRecords() {
     return matchesSearch && matchesProject && matchesProvince && matchesStatus && matchesMonth;
   });
 
-  // Sort so today's events first, then upcoming (soonest first), then past (most recent first)
   const sortedActivities = [...filteredActivities].sort((a, b) => {
     const todayKey = new Date().toISOString().slice(0, 10);
     const aDate = a.date;
@@ -533,17 +530,13 @@ export function ActivityRecords() {
     const bCat = bDate === todayKey ? 0 : bDate > todayKey ? 1 : 2;
     if (aCat !== bCat) return aCat - bCat;
 
-    // Within the same category
     if (aCat === 0) {
-      // Today: earliest start time first
       return (a.timeStart || "").localeCompare(b.timeStart || "");
     }
     if (aCat === 1) {
-      // Upcoming: earliest date, then earliest time
       if (aDate !== bDate) return aDate.localeCompare(bDate);
       return (a.timeStart || "").localeCompare(b.timeStart || "");
     }
-    // Past: most recent date first, then latest time
     if (aDate !== bDate) return bDate.localeCompare(aDate);
     return (b.timeStart || "").localeCompare(a.timeStart || "");
   });
@@ -555,13 +548,49 @@ export function ActivityRecords() {
     if (status === "Upcoming") return "bg-orange-100 text-orange-700";
     if (status === "Ongoing") return "bg-blue-100 text-blue-700";
     if (status === "Postponed") return "bg-yellow-100 text-yellow-700";
-    return "bg-red-100 text-red-700"; // Cancelled
+    if (status === "Rejected") return "bg-red-100 text-red-700";
+    return "bg-red-100 text-red-700";
   };
 
-  
+  const handleApproval = async () => {
+    if (!approvingActivity || !approvingActivity.id.startsWith("cal-")) {
+      alert("Invalid activity");
+      return;
+    }
+    
+    setApprovingLoading(true);
+    try {
+      const activityId = parseInt(approvingActivity.id.replace(/^cal-/, ""));
+      
+      if (approvalAction === "approve") {
+        await activitiesAPI.approve(activityId, approvalNotes);
+        toast.success("Activity approved successfully!");
+      } else {
+        await activitiesAPI.reject(activityId, approvalNotes);
+        toast.error("Activity rejected");
+      }
+      
+      setApprovalDialogOpen(false);
+      setApprovingActivity(null);
+      setApprovalNotes("");
+      
+      window.location.reload();
+    } catch (error: any) {
+      console.error("Approval error:", error);
+      toast.error(error.response?.data?.error || "Failed to process approval");
+    } finally {
+      setApprovingLoading(false);
+    }
+  };
+
+  const openApprovalDialog = (activity: Activity, action: "approve" | "reject") => {
+    setApprovingActivity(activity);
+    setApprovalAction(action);
+    setApprovalNotes("");
+    setApprovalDialogOpen(true);
+  };
 
   const handleExport = async () => {
-    // Collect the currently filtered activities (visible in table)
     const exportData = filteredActivities.map((a) => ({
       Project: a.project,
       Date: a.date,
@@ -573,7 +602,6 @@ export function ActivityRecords() {
       Status: a.status,
     }));
 
-    // 1. CSV (works in Excel)
     const csvHeader = Object.keys(exportData[0] || {});
     const csvRows = [csvHeader.join(','),
       ...exportData.map(row => csvHeader.map(h => {
@@ -590,7 +618,6 @@ export function ActivityRecords() {
     csvLink.click();
     URL.revokeObjectURL(csvUrl);
 
-    // 2. Excel (.xlsx) using xlsx library if available
     try {
       const XLSX = await import('xlsx');
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -598,10 +625,9 @@ export function ActivityRecords() {
       XLSX.utils.book_append_sheet(wb, ws, 'Activities');
       XLSX.writeFile(wb, 'activity-records.xlsx');
     } catch (err) {
-      console.warn('Excel export failed (make sure xlsx is installed):', err);
+      console.warn('Excel export failed:', err);
     }
 
-    // 3. PDF via jsPDF + autoTable plugin
     try {
       const { jsPDF } = await import('jspdf');
       await import('jspdf-autotable');
@@ -612,12 +638,11 @@ export function ActivityRecords() {
       (doc as any).autoTable({ head: [col], body: rows, startY: 60 });
       doc.save('activity-records.pdf');
     } catch (err) {
-      console.warn('PDF export failed (install jspdf & jspdf-autotable):', err);
+      console.warn('PDF export failed:', err);
     }
   };
 
   const handleEditActivity = (activity: Activity) => {
-    // only creator can submit/upload files for that activity
     if (user?.idNumber !== activity.createdBy?.idNumber) {
       alert("Only the creator may submit documents for this activity.");
       return;
@@ -631,61 +656,25 @@ export function ActivityRecords() {
     setEditDialogOpen(true);
   };
 
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
     if (!editingActivity) return;
 
-    // Prevent submitting files while the activity is still upcoming or ongoing
     if (editingActivity.status === "Ongoing" || editingActivity.status === "Upcoming") {
       alert("Cannot submit files while activity is Upcoming or Ongoing.");
       return;
     }
 
-    // Check if at least one file is being submitted
     if (!attendanceFile && !todaFile) {
       alert("Please upload at least one file (Attendance or TODA) before submitting.");
       return;
     }
 
-    let contextPayload: Partial<any> | null = null;
-    const updatedActivities = activities.map(activity => {
+    let updatedActivities = activities.map(activity => {
       if (activity.id === editingActivity.id) {
         const updates: Partial<Activity> = {
           participants: participantCount
         };
-        
-        // If attendance file was uploaded - save as temporary object URL
-        if (attendanceFile) {
-          updates.attendanceFile = URL.createObjectURL(attendanceFile);
-          updates.attendanceFileName = attendanceFile.name;
-          updates.attendanceUploadDate = new Date().toISOString();
-        }
-
-        // If TODA file was uploaded - save as temporary object URL
-        if (todaFile) {
-          updates.todaFile = URL.createObjectURL(todaFile);
-          updates.todaFileName = todaFile.name;
-          updates.todaUploadDate = new Date().toISOString();
-        }
-
-        // Get final file status (newly uploaded or already existing)
-        const finalAttendanceFile = updates.attendanceFileName || attendanceFileName;
-        const finalTodaFile = updates.todaFileName || todaFileName;
-        
-        // Mark as "For Approval" if BOTH files are present after submission
-        if (finalAttendanceFile && finalTodaFile) {
-          updates.status = "For Approval" as any;
-        }
-        
-        // Build payload for context update (if this came from calendar)
-        contextPayload = { participants: participantCount };
-        if (updates.attendanceFileName) contextPayload.attendanceFileName = updates.attendanceFileName;
-        if (updates.attendanceFile) contextPayload.attendanceFile = updates.attendanceFile;
-        if (updates.attendanceUploadDate) contextPayload.attendanceUploadDate = updates.attendanceUploadDate;
-        if (updates.todaFileName) contextPayload.todaFileName = updates.todaFileName;
-        if (updates.todaFile) contextPayload.todaFile = updates.todaFile;
-        if (updates.todaUploadDate) contextPayload.todaUploadDate = updates.todaUploadDate;
-        if (updates.status) contextPayload.status = updates.status;
-        
+        // we will handle file uploads separately, so don't add attendanceFile/todaFile here
         return { ...activity, ...updates };
       }
       return activity;
@@ -693,14 +682,21 @@ export function ActivityRecords() {
 
     setActivities(updatedActivities);
 
-    // If this record originated from the calendar context (id starts with "cal-"),
-    // also update the shared calendar data so the calendar reflects the change.
-    if (editingActivity.id.startsWith("cal-") && contextPayload) {
-      const originalId = parseInt(editingActivity.id.replace(/^cal-/, ""));
+    const originalId = editingActivity.id.startsWith("cal-")
+      ? parseInt(editingActivity.id.replace(/^cal-/, ""))
+      : null;
+
+    if (originalId !== null) {
       try {
-        const { updateActivity } = useActivities();
-        updateActivity(originalId, contextPayload);
-      } catch {}
+        if (attendanceFile || todaFile) {
+          // send files + participant count
+          await uploadDocuments(originalId, attendanceFile || undefined, todaFile || undefined, participantCount);
+        } else {
+          await updateActivity(originalId, { participants: participantCount });
+        }
+      } catch (err) {
+        console.error('Failed to save changes:', err);
+      }
     }
     setEditDialogOpen(false);
     setEditingActivity(null);
@@ -708,10 +704,9 @@ export function ActivityRecords() {
     setTodaFile(null);
   };
 
-  return (
+return (
     <div className="space-y-6">
       <Toaster position="top-right" />
-      {/* Page Header */}
       <div className="flex items-center justify-between pb-4 border-b-2 border-blue-200">
         <div className="flex items-center gap-3">
           <FileText className="h-6 w-6 text-blue-600" />
@@ -726,7 +721,6 @@ export function ActivityRecords() {
         </Button>
       </div>
 
-      {/* Info Banner */}
       <Alert className="bg-blue-50 border-blue-200">
         <Users className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-900">
@@ -735,7 +729,6 @@ export function ActivityRecords() {
         </AlertDescription>
       </Alert>
 
-      {/* Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card className="border-0 shadow-md">
           <CardContent className="p-4">
@@ -816,7 +809,6 @@ export function ActivityRecords() {
         </Card>
       </div>
 
-      {/* Filters */}
       <Card className="border-0 shadow-lg">
         <CardContent className="p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -928,7 +920,6 @@ export function ActivityRecords() {
         </CardContent>
       </Card>
 
-      {/* Activity Records Table */}
       <Card className="border-0 shadow-lg">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -1172,7 +1163,7 @@ export function ActivityRecords() {
                                   <div className="flex items-center gap-2 mt-1">
                                     <FileText className="h-4 w-4 text-blue-600" />
                                     <a 
-                                      href={activity.attendanceFile} 
+                                      href={`/api/activities/${activity.id}/file/attendance`} 
                                       download={activity.attendanceFileName}
                                       className="text-blue-600 hover:underline text-sm"
                                     >
@@ -1199,7 +1190,7 @@ export function ActivityRecords() {
                                   <div className="flex items-center gap-2 mt-1">
                                     <FileText className="h-4 w-4 text-blue-600" />
                                     <a
-                                      href={activity.todaFile}
+                                      href={`/api/activities/${activity.id}/file/toda`}
                                       download={activity.todaFileName}
                                       className="text-blue-600 hover:underline text-sm"
                                     >
@@ -1236,11 +1227,33 @@ export function ActivityRecords() {
                             size="sm"
                             className="gap-2"
                             onClick={() => handleEditActivity(activity)}
-                            // allow anyone to open submission dialog once status reaches this phase
                           >
                             <Upload className="h-4 w-4" />
                             Submit
                           </Button>
+                        )}
+                        
+{activity.status === "For Approval" && (user?.role === "admin" || user?.role === "superadmin") && (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="gap-2 bg-green-600 hover:bg-green-700"
+                              onClick={() => openApprovalDialog(activity, "approve")}
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                              Approve
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => openApprovalDialog(activity, "reject")}
+                            >
+                              <XCircle className="h-4 w-4" />
+                              Reject
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </TableCell>
@@ -1259,7 +1272,6 @@ export function ActivityRecords() {
         </CardContent>
       </Card>
 
-      {/* Edit Activity Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -1390,9 +1402,65 @@ export function ActivityRecords() {
             </Button>
             <Button
               onClick={handleSaveChanges}
-              // always allow submission action; validation prevents inappropriate statuses
             >
               Submit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {approvalAction === "approve" ? "Approve Activity" : "Reject Activity"}
+            </DialogTitle>
+            <DialogDescription>
+              {approvalAction === "approve" 
+                ? "Are you sure you want to approve this activity? It will be marked as Completed."
+                : "Please provide a reason for rejecting this activity."}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {approvingActivity && (
+            <div className="space-y-4 py-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Activity Name</p>
+                <p className="text-gray-900">{approvingActivity.name}</p>
+              </div>
+              
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Project</p>
+                <p className="text-gray-900">{approvingActivity.project}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="approval-notes">
+                  {approvalAction === "approve" ? "Notes (optional)" : "Reason for rejection *"}
+                </Label>
+                <Textarea
+                  id="approval-notes"
+                  value={approvalNotes}
+                  onChange={(e) => setApprovalNotes(e.target.value)}
+                  placeholder={approvalAction === "approve" 
+                    ? "Add any notes about this approval..." 
+                    : "Explain why this activity is being rejected..."}
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApprovalDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleApproval}
+              disabled={approvingLoading || (approvalAction === "reject" && !approvalNotes.trim())}
+              className={approvalAction === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
+            >
+              {approvingLoading ? "Processing..." : approvalAction === "approve" ? "Approve" : "Reject"}
             </Button>
           </DialogFooter>
         </DialogContent>

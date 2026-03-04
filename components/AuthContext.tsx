@@ -13,6 +13,7 @@ interface User {
   idNumber: string;
   email: string;
   project: string;
+  role?: string;
 }
 
 interface LocalUser {
@@ -32,6 +33,8 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   register: (username: string, email: string, password: string, confirmPassword: string, firstName: string, middleName: string, lastName: string, project: string) => Promise<{ success: boolean; message: string }>;
+  updateUserProfile: (updatedData: Partial<User>) => void;
+  refreshUserProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -287,8 +290,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('current_local_user');
   };
 
+  // Update user profile in context (used after profile update)
+  const updateUserProfile = (updatedData: Partial<User>) => {
+    setUser((prevUser) => {
+      if (!prevUser) return null;
+      return { ...prevUser, ...updatedData };
+    });
+  };
+
+  // Refresh user profile from backend (used when user is promoted to admin)
+  const refreshUserProfile = async () => {
+    try {
+      const response = await authAPI.getProfile();
+      setUser(response.data);
+    } catch (error) {
+      console.error('Failed to refresh user profile:', error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register, updateUserProfile, refreshUserProfile }}>
       {children}
     </AuthContext.Provider>
   );

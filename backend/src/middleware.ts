@@ -7,6 +7,8 @@ export interface AuthRequest extends Request {
     username: string;
     email: string;
   };
+  // multer may attach files when handling multipart/form-data
+  files?: { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[];
 }
 
 export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {

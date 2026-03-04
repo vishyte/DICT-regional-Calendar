@@ -16,6 +16,7 @@ import { Badge } from "./components/ui/badge";
 import { Toaster } from "./components/ui/sonner";
 import { deriveDisplayStatus } from "./components/utils/status";
 import { ArrowLeft, LogOut, User, Shield, LayoutDashboard, FileText, PlusCircle,  Bell   } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./components/ui/alert-dialog";
 // Initialize Firebase (must be imported at app root)
 import "./src/config/firebase";
 
@@ -52,6 +53,7 @@ function AppContent() {
   const [triggerShake, setTriggerShake] = useState<number>(0);
   const [isSuperadminMode, setIsSuperadminMode] = useState<boolean | null>(null); // null = checking, true/false = determined
   const [superadminUser, setSuperadminUser] = useState<{username: string} | null>(null);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState<boolean>(false);
 
   // Compute pending activities
   const pendingActivities = React.useMemo(() => {
@@ -244,31 +246,46 @@ function AppContent() {
                   <p className="text-sm text-gray-600">Logged in as: {superadminUser.username}</p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSuperadminUser(null);
-                  setIsSuperadminMode(false);
-                  localStorage.removeItem('is_superadmin');
-                  localStorage.removeItem('auth_token');
-                  localStorage.removeItem('current_local_user');
-                }}
-                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <LogOut className="h-4 w-4" />
-                Logout
-              </Button>
+              <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to log out? You will need to log in again to access your account.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        setSuperadminUser(null);
+                        setIsSuperadminMode(false);
+                        localStorage.removeItem('is_superadmin');
+                        localStorage.removeItem('auth_token');
+                        localStorage.removeItem('current_local_user');
+                      }}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      Yes, Logout
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-6 py-8">
           <SuperadminDashboard
-            onLogout={() => {
-              setSuperadminUser(null);
-              setIsSuperadminMode(false);
-              localStorage.removeItem('is_superadmin');
-              localStorage.removeItem('auth_token');
-            }}
+            onLogout={() => setLogoutDialogOpen(true)}
             superadminName={superadminUser?.username}
           />
         </div>
@@ -380,9 +397,30 @@ function AppContent() {
               </Button>
             </li>
             <li>
-              <Button variant="ghost" className="w-full justify-start gap-2 text-red-600" onClick={logout}> 
-                <LogOut className="h-5 w-5" /> Logout
-              </Button>
+              <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-start gap-2 text-red-600"> 
+                    <LogOut className="h-5 w-5" /> Logout
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to log out? You will need to log in again to access your account.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={logout}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      Yes, Logout
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </li>
           </ul>
         </nav>

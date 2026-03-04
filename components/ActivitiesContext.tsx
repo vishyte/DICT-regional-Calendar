@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, ReactNode } fr
 import { activitiesAPI } from "../utils/api";
 import { useAuth } from "./AuthContext";
 
+
 export type Activity = {
   id: number;
   name: string;
@@ -59,6 +60,7 @@ type ActivitiesContextType = {
   addActivity: (activity: Omit<Activity, 'id' | 'createdBy'>) => Promise<void>;
   updateActivity: (id: number, updates: Partial<Activity>) => Promise<void>;
   deleteActivity: (id: number) => Promise<void>;
+  uploadDocuments: (id: number, attendanceFile?: File, todaFile?: File, participantCount?: number) => Promise<void>;
   refreshActivities: () => Promise<void>;
 };
 
@@ -179,6 +181,25 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const uploadDocuments = async (
+    id: number,
+    attendanceFile?: File,
+    todaFile?: File,
+    participantCount?: number
+  ) => {
+    const form = new FormData();
+    if (attendanceFile) form.append('attendance', attendanceFile);
+    if (todaFile) form.append('toda', todaFile);
+    if (participantCount !== undefined) form.append('participants', String(participantCount));
+    try {
+      await activitiesAPI.uploadDocuments(id, form);
+      await refreshActivities();
+    } catch (error) {
+      console.error('Failed to upload documents:', error);
+      throw error;
+    }
+  };
+
   const deleteActivity = async (id: number) => {
     try {
       await activitiesAPI.delete(id);
@@ -200,6 +221,7 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
     addActivity,
     updateActivity,
     deleteActivity,
+    uploadDocuments,
     refreshActivities
   }), [activities, loading]);
 

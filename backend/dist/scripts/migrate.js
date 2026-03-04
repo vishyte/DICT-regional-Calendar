@@ -7,7 +7,7 @@ const database_1 = __importDefault(require("../database"));
 async function createTables() {
     try {
         // Users table
-        database_1.default.query(`
+        await database_1.default.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username VARCHAR(50) UNIQUE NOT NULL,
@@ -17,16 +17,18 @@ async function createTables() {
         middle_name VARCHAR(100),
         last_name VARCHAR(100) NOT NULL,
         project VARCHAR(255) NOT NULL,
+        role VARCHAR(20) DEFAULT 'user',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
         // Activities table
-        database_1.default.query(`
+        await database_1.default.query(`
       CREATE TABLE IF NOT EXISTS activities (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name VARCHAR(255) NOT NULL,
         date DATE NOT NULL,
+        end_date DATE,
         original_date DATE,
         time VARCHAR(20) NOT NULL,
         end_time VARCHAR(20) NOT NULL,
@@ -46,13 +48,17 @@ async function createTables() {
         partner_institution VARCHAR(255),
         mode VARCHAR(50),
         platform VARCHAR(255),
+        approved_by_id INTEGER,
+        approved_at DATETIME,
+        approval_notes TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (created_by_id) REFERENCES users(id)
+        FOREIGN KEY (created_by_id) REFERENCES users(id),
+        FOREIGN KEY (approved_by_id) REFERENCES users(id)
       )
     `);
         // Assigned personnel table
-        database_1.default.query(`
+        await database_1.default.query(`
       CREATE TABLE IF NOT EXISTS assigned_personnel (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         activity_id INTEGER NOT NULL,
@@ -64,7 +70,7 @@ async function createTables() {
       )
     `);
         // Documents table
-        database_1.default.query(`
+        await database_1.default.query(`
       CREATE TABLE IF NOT EXISTS documents (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         activity_id INTEGER NOT NULL,
@@ -75,11 +81,55 @@ async function createTables() {
       )
     `);
         console.log('✅ Database tables created successfully');
+        // Ensure `role` column exists on users table for upgrades
+        try {
+            const pragma = await database_1.default.query("PRAGMA table_info(users)");
+            const cols = pragma.rows.map((r) => r.name);
+            if (!cols.includes('role')) {
+                await database_1.default.query("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'");
+                console.log('✅ Added role column to users table');
+            }
+        }
+        catch (err) {
+            // Non-fatal: log and continue
+            console.warn('Could not ensure role column exists:', err);
+        }
+        // Ensure approval columns exist on activities table for upgrades
+        try {
+            const pragma = await database_1.default.query("PRAGMA table_info(activities)");
+            const cols = pragma.rows.map((r) => r.name);
+            if (!cols.includes('approved_by_id')) {
+                await database_1.default.query("ALTER TABLE activities ADD COLUMN approved_by_id INTEGER");
+                await database_1.default.query("ALTER TABLE activities ADD COLUMN approved_at DATETIME");
+                await database_1.default.query("ALTER TABLE activities ADD COLUMN approval_notes TEXT");
+                console.log('✅ Added approval columns to activities table');
+            }
+            // Add document upload columns if they don't exist
+            if (!cols.includes('attendance_file_name')) {
+                await database_1.default.query("ALTER TABLE activities ADD COLUMN attendance_file_name TEXT");
+                await database_1.default.query("ALTER TABLE activities ADD COLUMN attendance_upload_date DATETIME");
+                // SQLite stores blobs as BLOB, we'll create a generic column and let code treat it accordingly
+                await database_1.default.query("ALTER TABLE activities ADD COLUMN attendance_file_data BLOB");
+                await database_1.default.query("ALTER TABLE activities ADD COLUMN toda_file_name TEXT");
+                await database_1.default.query("ALTER TABLE activities ADD COLUMN toda_upload_date DATETIME");
+                await database_1.default.query("ALTER TABLE activities ADD COLUMN toda_file_data BLOB");
+                console.log('✅ Added document upload columns to activities table');
+            }
+        }
+        catch (err) {
+            // Non-fatal: log and continue
+            console.warn('Could not ensure approval columns exist:', err);
+        }
     }
     catch (error) {
         console.error('❌ Error creating tables:', error);
         process.exit(1);
     }
 }
-createTables();
-process.exit(0);
+createTables()
+    .then(() => database_1.default.end())
+    .then(() => process.exit(0))
+    .catch((err) => {
+    console.error(err);
+    process.exit(1);
+});
