@@ -225,13 +225,24 @@ export function ApprovalsPanel() {
                           <div className="flex items-center gap-1">
                             <FileText className="h-4 w-4 text-blue-600" />
                             {activity.attendanceFileName ? (
-                              <a
-                                href={`/api/activities/${activity.id}/file/attendance`}
-                                download={activity.attendanceFileName}
-                                className="text-blue-600 hover:underline"
-                              >
-                                Attendance
-                              </a>
+                              <div className="flex gap-2">
+                                <a
+                                  href={`/api/activities/${activity.id}/file/attendance`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  View Attendance
+                                </a>
+                                <a
+                                  href={`/api/activities/${activity.id}/file/attendance`}
+                                  download={activity.attendanceFileName}
+                                  className="text-gray-500 hover:text-gray-700 text-xs"
+                                  title="Download"
+                                >
+                                  ↓
+                                </a>
+                              </div>
                             ) : (
                               <span className="text-gray-400">
                                 No attendance
@@ -241,13 +252,24 @@ export function ApprovalsPanel() {
                           <div className="flex items-center gap-1">
                             <FileText className="h-4 w-4 text-blue-600" />
                             {activity.todaFileName ? (
-                              <a
-                                href={`/api/activities/${activity.id}/file/toda`}
-                                download={activity.todaFileName}
-                                className="text-blue-600 hover:underline"
-                              >
-                                TODA
-                              </a>
+                              <div className="flex gap-2">
+                                <a
+                                  href={`/api/activities/${activity.id}/file/toda`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  View TODA
+                                </a>
+                                <a
+                                  href={`/api/activities/${activity.id}/file/toda`}
+                                  download={activity.todaFileName}
+                                  className="text-gray-500 hover:text-gray-700 text-xs"
+                                  title="Download"
+                                >
+                                  ↓
+                                </a>
+                              </div>
                             ) : (
                               <span className="text-gray-400">No TODA</span>
                             )}

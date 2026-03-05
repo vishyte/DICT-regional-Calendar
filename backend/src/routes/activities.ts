@@ -206,7 +206,7 @@ router.post('/:id/upload', authenticateToken, upload.fields([{ name: 'attendance
   }
 });
 
-// Download stored file
+// Download/View stored file
 router.get('/:id/file/:type', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { id, type } = req.params;
@@ -223,7 +223,18 @@ router.get('/:id/file/:type', authenticateToken, async (req: AuthRequest, res) =
     }
 
     const filename = row.name || 'file';
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Set appropriate content type based on file extension
+    const ext = filename.toLowerCase().split('.').pop();
+    let contentType = 'application/octet-stream';
+    if (ext === 'pdf') contentType = 'application/pdf';
+    else if (['jpg', 'jpeg'].includes(ext || '')) contentType = 'image/jpeg';
+    else if (ext === 'png') contentType = 'image/png';
+    else if (ext === 'gif') contentType = 'image/gif';
+
+    res.setHeader('Content-Type', contentType);
+    // Use inline disposition to allow viewing in browser
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     res.send(row.data);
   } catch (error: any) {
     console.error('Download file error:', error);
