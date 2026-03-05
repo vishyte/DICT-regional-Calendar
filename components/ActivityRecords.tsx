@@ -41,6 +41,8 @@ interface Activity {
   status: "Scheduled" | "Completed" | "Submission of Documents" | "Postponed" | "Cancelled" | "Upcoming" | "Ongoing" | "For Approval";
   priority?: "Normal" | "Urgent";
   participants: number;
+  male?: number;
+  female?: number;
   notes?: string;
   changeReason?: string;
   changeDate?: string;
@@ -613,6 +615,8 @@ export function ActivityRecords() {
       Barangay: a.barangay,
       Province: a.province,
       Participants: a.participants,
+      Male: (a as any).male ?? '',
+      Female: (a as any).female ?? '',
       "Created By": a.createdBy?.fullName || "",
       Status: a.status,
     }));
