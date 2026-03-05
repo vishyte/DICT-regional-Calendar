@@ -50,7 +50,12 @@ export function DocumentsPage() {
     const forApproval = flattened.filter(activity => {
       const displayStatus = deriveDisplayStatus(activity);
       if (displayStatus !== "For Approval") return false;
-return activity.project === user.project;
+
+      // Admins see all activities awaiting approval
+      if (isAdmin) return true;
+      
+      // Regular users see only their project's activities
+      return activity.project === user.project;
     });
 
     const completed = flattened.filter(activity => {
