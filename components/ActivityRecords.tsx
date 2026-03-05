@@ -114,7 +114,8 @@ export function ActivityRecords() {
     "Davao Del Sur",
     "Davao Del Norte",
     "Davao Occidental",
-    "Davao Oriental"
+    "Davao Oriental",
+    "Davao City"
   ];
 
   const [activities, setActivities] = useState<Activity[]>([
