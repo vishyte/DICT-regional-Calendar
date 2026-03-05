@@ -165,14 +165,18 @@ router.post('/:id/upload', authenticateToken, upload.fields([{ name: 'attendance
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     const updates: any = {};
 
-    if (files.attendance && files.attendance[0]) {
+    console.log(`Upload endpoint called for activity ${id}, files received:`, files ? Object.keys(files) : 'none');
+
+    if (files && files.attendance && files.attendance[0]) {
       const f = files.attendance[0];
+      console.log(`Attendance file: ${f.originalname}, size: ${f.buffer.length} bytes`);
       updates.attendance_file_name = f.originalname;
       updates.attendance_upload_date = new Date();
       updates.attendance_file_data = f.buffer;
     }
-    if (files.toda && files.toda[0]) {
+    if (files && files.toda && files.toda[0]) {
       const f = files.toda[0];
+      console.log(`TODA file: ${f.originalname}, size: ${f.buffer.length} bytes`);
       updates.toda_file_name = f.originalname;
       updates.toda_upload_date = new Date();
       updates.toda_file_data = f.buffer;
@@ -189,6 +193,10 @@ router.post('/:id/upload', authenticateToken, upload.fields([{ name: 'attendance
       updates.status = 'For Approval';
     }
 
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No files or data provided' });
+    }
+
     const fields: string[] = [];
     const values: any[] = [];
     Object.keys(updates).forEach(key => {
@@ -198,8 +206,10 @@ router.post('/:id/upload', authenticateToken, upload.fields([{ name: 'attendance
 
     values.push(id);
     const query = `UPDATE activities SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+    console.log(`Executing upload query for activity ${id}`);
     await pool.query(query, values);
-    res.json({ message: 'Files uploaded' });
+    console.log(`Upload successful for activity ${id}`);
+    res.json({ message: 'Files uploaded successfully' });
   } catch (error: any) {
     console.error('Upload files error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
@@ -213,13 +223,20 @@ router.get('/:id/file/:type', authenticateToken, async (req: AuthRequest, res) =
     const columnData = type === 'attendance' ? 'attendance_file_data' : 'toda_file_data';
     const columnName = type === 'attendance' ? 'attendance_file_name' : 'toda_file_name';
 
+    console.log(`File download request: activity ${id}, type ${type}`);
+
     const result = await pool.query(`SELECT ${columnData} as data, ${columnName} as name FROM activities WHERE id = ?`, [id]);
     if (result.rows.length === 0) {
+      console.log(`Activity ${id} not found`);
       return res.status(404).json({ error: 'Activity not found' });
     }
     const row = result.rows[0] as any;
+    
+    console.log(`Activity ${id} found. File name: ${row.name}, data exists: ${!!row.data}`);
+    
     if (!row.data) {
-      return res.status(404).json({ error: 'File not found' });
+      console.log(`No file data for activity ${id}, type ${type}`);
+      return res.status(404).json({ error: `${type === 'attendance' ? 'Attendance' : 'TODA'} file not found. The staff may not have submitted it yet.` });
     }
 
     const filename = row.name || 'file';
@@ -235,10 +252,11 @@ router.get('/:id/file/:type', authenticateToken, async (req: AuthRequest, res) =
     res.setHeader('Content-Type', contentType);
     // Use inline disposition to allow viewing in browser
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    console.log(`Sending file: ${filename}, size: ${row.data.length} bytes`);
     res.send(row.data);
   } catch (error: any) {
     console.error('Download file error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
