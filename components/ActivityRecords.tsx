@@ -1434,6 +1434,62 @@ return (
                 <p className="text-gray-900">{approvingActivity.project}</p>
               </div>
 
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Submitted Documents</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">Attendance:</span>
+                    {approvingActivity.attendanceFileName ? (
+                      <div className="flex gap-2">
+                        <a
+                          href={`/api/activities/${approvingActivity.id}/file/attendance`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          View
+                        </a>
+                        <a
+                          href={`/api/activities/${approvingActivity.id}/file/attendance`}
+                          download={approvingActivity.attendanceFileName}
+                          className="text-gray-500 hover:text-gray-700 text-xs"
+                          title="Download"
+                        >
+                          ↓
+                        </a>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">Not submitted</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">TODA:</span>
+                    {approvingActivity.todaFileName ? (
+                      <div className="flex gap-2">
+                        <a
+                          href={`/api/activities/${approvingActivity.id}/file/toda`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          View
+                        </a>
+                        <a
+                          href={`/api/activities/${approvingActivity.id}/file/toda`}
+                          download={approvingActivity.todaFileName}
+                          className="text-gray-500 hover:text-gray-700 text-xs"
+                          title="Download"
+                        >
+                          ↓
+                        </a>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">Not submitted</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="approval-notes">
                   {approvalAction === "approve" ? "Notes (optional)" : "Reason for rejection *"}
