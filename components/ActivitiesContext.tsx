@@ -60,7 +60,7 @@ type ActivitiesContextType = {
   addActivity: (activity: Omit<Activity, 'id' | 'createdBy'>) => Promise<void>;
   updateActivity: (id: number, updates: Partial<Activity>) => Promise<void>;
   deleteActivity: (id: number) => Promise<void>;
-  uploadDocuments: (id: number, attendanceFile?: File, todaFile?: File, participantCount?: number) => Promise<void>;
+  uploadDocuments: (id: number, attendanceFile?: File, todaFile?: File, participantCount?: number, male?: number, female?: number) => Promise<void>;
   refreshActivities: () => Promise<void>;
 };
 
@@ -185,12 +185,16 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
     id: number,
     attendanceFile?: File,
     todaFile?: File,
-    participantCount?: number
+    participantCount?: number,
+    male?: number,
+    female?: number
   ) => {
     const form = new FormData();
     if (attendanceFile) form.append('attendance', attendanceFile);
     if (todaFile) form.append('toda', todaFile);
     if (participantCount !== undefined) form.append('participants', String(participantCount));
+    if (male !== undefined) form.append('male', String(male));
+    if (female !== undefined) form.append('female', String(female));
     try {
       await activitiesAPI.uploadDocuments(id, form);
       await refreshActivities();

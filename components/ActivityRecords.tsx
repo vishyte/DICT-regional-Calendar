@@ -69,6 +69,8 @@ export function ActivityRecords() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
   const [participantCount, setParticipantCount] = useState<number>(0);
+  const [maleCount, setMaleCount] = useState<number | null>(null);
+  const [femaleCount, setFemaleCount] = useState<number | null>(null);
   const [attendanceFile, setAttendanceFile] = useState<File | null>(null);
   const [attendanceFileName, setAttendanceFileName] = useState<string>("");
   const [todaFile, setTodaFile] = useState<File | null>(null);
@@ -517,7 +519,8 @@ export function ActivityRecords() {
                          activity.barangay.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          activity.partnerInstitution.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesProject = selectedProject === "all" || activity.project === selectedProject;
-    const matchesProvince = selectedProvince === "all" || activity.province === selectedProvince;
+    const normalize = (s: string) => (s || "").toLowerCase().trim();
+    const matchesProvince = selectedProvince === "all" || normalize(activity.province) === normalize(selectedProvince);
     const matchesStatus = selectedStatus === "all" || (selectedStatus === "Pending" ? activity.status === "Submission of Documents" : activity.status === selectedStatus);
     const activityMonth = new Date(activity.date).getMonth().toString();
     const matchesMonth = selectedMonth === "all" || activityMonth === selectedMonth;
@@ -660,6 +663,8 @@ export function ActivityRecords() {
     }
     setEditingActivity(activity);
     setParticipantCount(activity.participants || 0);
+    setMaleCount((activity as any).male ?? null);
+    setFemaleCount((activity as any).female ?? null);
     setAttendanceFile(null);
     setAttendanceFileName(activity.attendanceFileName || "");
     setTodaFile(null);
@@ -700,8 +705,15 @@ export function ActivityRecords() {
     if (originalId !== null) {
       try {
         if (attendanceFile || todaFile) {
-          // send files + participant count
-          await uploadDocuments(originalId, attendanceFile || undefined, todaFile || undefined, participantCount);
+          // send files + participant count + male/female
+          await uploadDocuments(
+            originalId,
+            attendanceFile || undefined,
+            todaFile || undefined,
+            participantCount,
+            maleCount ?? undefined,
+            femaleCount ?? undefined
+          );
         } else {
           await updateActivity(originalId, { participants: participantCount });
         }
@@ -1350,14 +1362,38 @@ return (
 
               <div className="space-y-2">
                 <Label htmlFor="participant-count">Number of Participants *</Label>
-                <Input
-                  id="participant-count"
-                  type="number"
-                  min="0"
-                  value={participantCount}
-                  onChange={(e) => setParticipantCount(parseInt(e.target.value) || 0)}
-                  placeholder="Enter total participants"
-                />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <div>
+                    <Input
+                      id="participant-count"
+                      type="number"
+                      min="0"
+                      value={participantCount}
+                      onChange={(e) => setParticipantCount(parseInt(e.target.value) || 0)}
+                      placeholder="Total"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      id="male-count"
+                      type="number"
+                      min="0"
+                      value={maleCount ?? ''}
+                      onChange={(e) => setMaleCount(e.target.value === '' ? null : parseInt(e.target.value) || 0)}
+                      placeholder="Male"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      id="female-count"
+                      type="number"
+                      min="0"
+                      value={femaleCount ?? ''}
+                      onChange={(e) => setFemaleCount(e.target.value === '' ? null : parseInt(e.target.value) || 0)}
+                      placeholder="Female"
+                    />
+                  </div>
+                </div>
                 <p className="text-xs text-gray-500">
                   Current: {editingActivity.participants || 0} participants
                 </p>
@@ -1404,7 +1440,7 @@ return (
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="toda-file">Upload TODA (PDF)</Label>
+                <Label htmlFor="toda-file">Upload Accomplishment Report (PDF)</Label>
                 <Input
                   id="toda-file"
                   type="file"

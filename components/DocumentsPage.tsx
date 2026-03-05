@@ -28,6 +28,8 @@ export function DocumentsPage() {
   const [attendanceFile, setAttendanceFile] = useState<File | null>(null);
   const [todaFile, setTodaFile] = useState<File | null>(null);
   const [participantCount, setParticipantCount] = useState<string>("");
+  const [maleCount, setMaleCount] = useState<string>("");
+  const [femaleCount, setFemaleCount] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
   // Check if user is admin or superadmin only - staff should not see approval section
@@ -92,6 +94,8 @@ export function DocumentsPage() {
     setAttendanceFile(null);
     setTodaFile(null);
     setParticipantCount("");
+    setMaleCount("");
+    setFemaleCount("");
     setNotes("");
     setDialogOpen(true);
   };
@@ -120,12 +124,14 @@ const handleSubmitFiles = async () => {
         throw new Error("Invalid activity ID");
       }
 
-      // use uploadDocuments helper to send files and participant count
+      // use uploadDocuments helper to send files and participant counts
       await uploadDocuments(
         activityId,
         attendanceFile || undefined,
         todaFile || undefined,
-        participantCount ? parseInt(participantCount) : undefined
+        participantCount ? parseInt(participantCount) : undefined,
+        maleCount ? parseInt(maleCount) : undefined,
+        femaleCount ? parseInt(femaleCount) : undefined
       );
 
       toast.success(`✅ ${selectedActivity.name}`, {
@@ -384,14 +390,38 @@ const handleSubmitFiles = async () => {
 
               <div className="space-y-2">
                 <Label htmlFor="participant-count">Number of Participants *</Label>
-                <Input
-                  id="participant-count"
-                  type="number"
-                  min="0"
-                  value={participantCount}
-                  onChange={(e) => setParticipantCount(e.target.value)}
-                  placeholder="Enter total participants"
-                />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <div>
+                    <Input
+                      id="participant-count"
+                      type="number"
+                      min="0"
+                      value={participantCount}
+                      onChange={(e) => setParticipantCount(e.target.value)}
+                      placeholder="Total"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      id="male-count"
+                      type="number"
+                      min="0"
+                      value={maleCount}
+                      onChange={(e) => setMaleCount(e.target.value)}
+                      placeholder="Male"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      id="female-count"
+                      type="number"
+                      min="0"
+                      value={femaleCount}
+                      onChange={(e) => setFemaleCount(e.target.value)}
+                      placeholder="Female"
+                    />
+                  </div>
+                </div>
                 <p className="text-xs text-gray-500">
                   Current: {selectedActivity.participants || 0} participants
                 </p>
@@ -430,7 +460,7 @@ const handleSubmitFiles = async () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="toda-file">Upload TODA (PDF)</Label>
+                <Label htmlFor="toda-file">Upload Accomplishment Report (PDF)</Label>
                 <Input
                   id="toda-file"
                   type="file"
