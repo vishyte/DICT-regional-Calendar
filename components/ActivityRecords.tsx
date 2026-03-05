@@ -520,7 +520,7 @@ export function ActivityRecords() {
                          activity.partnerInstitution.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesProject = selectedProject === "all" || activity.project === selectedProject;
     const normalize = (s: string) => (s || "").toLowerCase().trim();
-    const matchesProvince = selectedProvince === "all" || normalize(activity.province) === normalize(selectedProvince);
+    const matchesProvince = selectedProvince === "all" || normalize(activity.province).includes(normalize(selectedProvince));
     const matchesStatus = selectedStatus === "all" || (selectedStatus === "Pending" ? activity.status === "Submission of Documents" : activity.status === selectedStatus);
     const activityMonth = new Date(activity.date).getMonth().toString();
     const matchesMonth = selectedMonth === "all" || activityMonth === selectedMonth;
