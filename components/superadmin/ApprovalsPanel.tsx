@@ -6,6 +6,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { toast } from "sonner";
+import api from "../../utils/api";
 import { Search, FileText, CheckCircle2, XCircle, Calendar, Users } from "lucide-react";
 
 export function ApprovalsPanel() {
@@ -84,6 +85,28 @@ export function ApprovalsPanel() {
       toast.error("Failed to update approval status. Please try again.");
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const fetchAndOpenFile = async (id: number, type: 'attendance' | 'toda', downloadName?: string) => {
+    try {
+      const resp = await api.get(`/activities/${id}/file/${type}`, { responseType: 'blob' });
+      const blob = new Blob([resp.data]);
+      const url = URL.createObjectURL(blob);
+      if (downloadName) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = downloadName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        window.open(url, '_blank');
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      console.error('Failed to fetch file:', err);
+      toast.error('Failed to fetch file.');
     }
   };
 
@@ -226,49 +249,41 @@ export function ApprovalsPanel() {
                             <FileText className="h-4 w-4 text-blue-600" />
                             {activity.attendanceFileName ? (
                               <div className="flex gap-2">
-                                <a
-                                  href={`/api/activities/${activity.id}/file/attendance`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <button
+                                  onClick={() => fetchAndOpenFile(activity.id, 'attendance')}
                                   className="text-blue-600 hover:underline"
                                 >
                                   View Attendance
-                                </a>
-                                <a
-                                  href={`/api/activities/${activity.id}/file/attendance`}
-                                  download={activity.attendanceFileName}
+                                </button>
+                                <button
+                                  onClick={() => fetchAndOpenFile(activity.id, 'attendance', activity.attendanceFileName)}
                                   className="text-gray-500 hover:text-gray-700 text-xs"
                                   title="Download"
                                 >
                                   ↓
-                                </a>
+                                </button>
                               </div>
                             ) : (
-                              <span className="text-gray-400">
-                                No attendance
-                              </span>
+                              <span className="text-gray-400">No attendance</span>
                             )}
                           </div>
                           <div className="flex items-center gap-1">
                             <FileText className="h-4 w-4 text-blue-600" />
                             {activity.todaFileName ? (
                               <div className="flex gap-2">
-                                <a
-                                  href={`/api/activities/${activity.id}/file/toda`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <button
+                                  onClick={() => fetchAndOpenFile(activity.id, 'toda')}
                                   className="text-blue-600 hover:underline"
                                 >
                                   View TODA
-                                </a>
-                                <a
-                                  href={`/api/activities/${activity.id}/file/toda`}
-                                  download={activity.todaFileName}
+                                </button>
+                                <button
+                                  onClick={() => fetchAndOpenFile(activity.id, 'toda', activity.todaFileName)}
                                   className="text-gray-500 hover:text-gray-700 text-xs"
                                   title="Download"
                                 >
                                   ↓
-                                </a>
+                                </button>
                               </div>
                             ) : (
                               <span className="text-gray-400">No TODA</span>
