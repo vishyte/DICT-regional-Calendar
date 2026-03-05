@@ -29,6 +29,10 @@ export function DocumentsPage() {
   const [participantCount, setParticipantCount] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
+  // Check if user is admin or superadmin only - staff should not see approval section
+  // Handle case where user.role might be undefined (for local users)
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+
   // Get all activities and filter for pending, approval, and completed
   const groupedActivities = useMemo(() => {
     if (!user || !activities) return { pending: [], forApproval: [], completed: [] };
@@ -75,11 +79,7 @@ export function DocumentsPage() {
       forApproval: forApproval.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
       completed: completed.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     };
-  }, [activities, user]);
-
-  // Check if user is admin or superadmin only - staff should not see approval section
-  // Handle case where user.role might be undefined (for local users)
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  }, [activities, user, isAdmin]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
