@@ -30,11 +30,17 @@ api.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('is_superadmin');
-      localStorage.removeItem('current_local_user');
-      // Reload the page - the app will handle routing to login
-      window.location.reload();
+      // Don't automatically reload the page if the 401 came from the
+      // login or registration endpoints; those errors should be handled
+      // in the calling code so we can display a message without a refresh.
+      const reqUrl = error.config?.url || '';
+      if (!reqUrl.includes('/users/login') && !reqUrl.includes('/users/register')) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('is_superadmin');
+        localStorage.removeItem('current_local_user');
+        // Reload the page - the app will handle routing to login
+        window.location.reload();
+      }
     }
     return Promise.reject(error);
   }
