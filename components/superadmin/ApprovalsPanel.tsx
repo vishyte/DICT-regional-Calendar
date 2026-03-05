@@ -10,7 +10,7 @@ import api from "../../utils/api";
 import { Search, FileText, CheckCircle2, XCircle, Calendar, Users } from "lucide-react";
 
 export function ApprovalsPanel() {
-  const { activities, loading, updateActivity } = useActivities();
+  const { activities, loading, updateActivity, refreshActivities } = useActivities();
   const [searchQuery, setSearchQuery] = useState("");
   const [processingId, setProcessingId] = useState<number | null>(null);
 
@@ -66,23 +66,19 @@ export function ApprovalsPanel() {
 
     setProcessingId(activity.id);
     try {
-      const newStatus =
-        decision === "approve" ? "Completed" : "Submission of Documents";
+      if (decision === 'approve') {
+        await api.post(`/activities/${activity.id}/approve`);
+        toast.success('Activity approved', { description: 'The activity has been marked as Completed.' });
+      } else {
+        await api.post(`/activities/${activity.id}/reject`);
+        toast.success('Submission returned', { description: 'The project team can now update and re-submit the documents.' });
+      }
 
-      await updateActivity(activity.id, { status: newStatus });
-
-      toast.success(
-        decision === "approve" ? "Activity approved" : "Submission returned",
-        {
-          description:
-            decision === "approve"
-              ? "The activity has been marked as Completed."
-              : "The project team can now update and re-submit the documents.",
-        }
-      );
+      // refresh local activities
+      await refreshActivities();
     } catch (error) {
-      console.error("Failed to update activity status:", error);
-      toast.error("Failed to update approval status. Please try again.");
+      console.error('Failed to process approval decision:', error);
+      toast.error('Failed to update approval status. Please try again.');
     } finally {
       setProcessingId(null);
     }
