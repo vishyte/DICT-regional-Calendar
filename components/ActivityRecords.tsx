@@ -731,8 +731,7 @@ return (
       <Alert className="bg-blue-50 border-blue-200">
         <Users className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-900">
-          <strong>Document Submission:</strong> Once an activity is completed (status becomes "Submission of Documents"), use the Submit button to upload attendance records and update participant counts. 
-          These statistics will automatically reflect in the home page dashboard for monthly and yearly totals.
+          <strong>Note:</strong> Activity Records is for viewing activity details. Downloadable files are available only for activities with status "Completed".
         </AlertDescription>
       </Alert>
 
@@ -1246,17 +1245,7 @@ return (
                           </DialogContent>
                         </Dialog>
                         
-                        {activity.status === "Submission of Documents" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-2"
-                            onClick={() => handleEditActivity(activity)}
-                          >
-                            <Upload className="h-4 w-4" />
-                            Submit
-                          </Button>
-                        )}
+                        {/* Removed Submit button from Activity Records - submissions handled elsewhere */}
                         
 {activity.status === "For Approval" && (user?.role === "admin" || user?.role === "superadmin") && (
                           <div className="flex gap-2">
@@ -1464,51 +1453,52 @@ return (
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">Attendance:</span>
-                      {approvingActivity.attendanceFileName ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={async () => {
-                              try {
-                                const resp = await api.get(`/activities/${approvingActivity.id}/file/attendance`, { responseType: 'blob' });
-                                const blob = new Blob([resp.data]);
-                                const url = URL.createObjectURL(blob);
-                                window.open(url, '_blank');
-                                setTimeout(() => URL.revokeObjectURL(url), 60000);
-                              } catch (err) {
-                                console.error('Failed to fetch attendance file', err);
-                              }
-                            }}
-                            className="text-blue-600 hover:underline"
-                          >
-                            View
-                          </button>
-                          <button
-                            onClick={async () => {
-                              try {
-                                const resp = await api.get(`/activities/${approvingActivity.id}/file/attendance`, { responseType: 'blob' });
-                                const blob = new Blob([resp.data]);
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = approvingActivity.attendanceFileName || 'attendance';
-                                document.body.appendChild(a);
-                                a.click();
-                                a.remove();
-                                setTimeout(() => URL.revokeObjectURL(url), 60000);
-                              } catch (err) {
-                                console.error('Failed to download attendance file', err);
-                              }
-                            }}
-                            className="text-gray-500 hover:text-gray-700 text-xs"
-                            title="Download"
-                          >
-                            ↓
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">Not submitted</span>
-                      )}
+                    {approvingActivity.attendanceFileName ? (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const resp = await api.get(`/activities/${approvingActivity.id}/file/attendance`, { responseType: 'blob' });
+                              const blob = new Blob([resp.data]);
+                              const url = URL.createObjectURL(blob);
+                              window.open(url, '_blank');
+                              setTimeout(() => URL.revokeObjectURL(url), 60000);
+                            } catch (err) {
+                              console.error('Failed to fetch attendance file', err);
+                            }
+                          }}
+                          className="text-blue-600 hover:underline"
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const resp = await api.get(`/activities/${approvingActivity.id}/file/attendance`, { responseType: 'blob' });
+                              const blob = new Blob([resp.data]);
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = approvingActivity.attendanceFileName || 'attendance';
+                              document.body.appendChild(a);
+                              a.click();
+                              a.remove();
+                              setTimeout(() => URL.revokeObjectURL(url), 60000);
+                            } catch (err) {
+                              console.error('Failed to download attendance file', err);
+                            }
+                          }}
+                          className="text-gray-500 hover:text-gray-700 text-xs"
+                          title="Download"
+                        >
+                          ↓
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">Not submitted</span>
+                    )}
                   </div>
+
                   <div className="flex items-center gap-2">
                     <span className="font-medium">TODA:</span>
                     {approvingActivity.todaFileName ? (
