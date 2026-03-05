@@ -223,20 +223,30 @@ router.get('/:id/file/:type', authenticateToken, async (req: AuthRequest, res) =
     const columnData = type === 'attendance' ? 'attendance_file_data' : 'toda_file_data';
     const columnName = type === 'attendance' ? 'attendance_file_name' : 'toda_file_name';
 
-    console.log(`File download request: activity ${id}, type ${type}`);
+    console.log(`\n📥 File download request: activity ${id}, type ${type}\n`);
 
-    const result = await pool.query(`SELECT ${columnData} as data, ${columnName} as name FROM activities WHERE id = ?`, [id]);
-    if (result.rows.length === 0) {
-      console.log(`Activity ${id} not found`);
+    // First, check if the activity exists and what columns it has
+    const activityCheck = await pool.query(`SELECT id, ${columnName}, ${columnData} IS NOT NULL as has_data FROM activities WHERE id = ?`, [id]);
+    console.log(`Activity check result:`, activityCheck.rows);
+
+    if (activityCheck.rows.length === 0) {
+      console.log(`❌ Activity ${id} not found`);
       return res.status(404).json({ error: 'Activity not found' });
     }
+
+    const checkRow = activityCheck.rows[0] as any;
+    console.log(`Activity ${id} found. File name: "${checkRow[columnName.toLowerCase()] || columnName.toLowerCase()}", has_data: ${checkRow.has_data}`);
+
+    // Now get the actual file data
+    const result = await pool.query(`SELECT ${columnData} as data, ${columnName} as name FROM activities WHERE id = ?`, [id]);
     const row = result.rows[0] as any;
     
-    console.log(`Activity ${id} found. File name: ${row.name}, data exists: ${!!row.data}`);
-    
-    if (!row.data) {
-      console.log(`No file data for activity ${id}, type ${type}`);
-      return res.status(404).json({ error: `${type === 'attendance' ? 'Attendance' : 'TODA'} file not found. The staff may not have submitted it yet.` });
+    if (!row || !row.data) {
+      console.log(`❌ No file data for activity ${id}, type ${type}`);
+      return res.status(404).json({ 
+        error: `${type === 'attendance' ? 'Attendance' : 'TODA'} file not found. The staff may not have submitted it yet.`,
+        debug: checkRow
+      });
     }
 
     const filename = row.name || 'file';
@@ -250,12 +260,11 @@ router.get('/:id/file/:type', authenticateToken, async (req: AuthRequest, res) =
     else if (ext === 'gif') contentType = 'image/gif';
 
     res.setHeader('Content-Type', contentType);
-    // Use inline disposition to allow viewing in browser
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    console.log(`Sending file: ${filename}, size: ${row.data.length} bytes`);
+    console.log(`✅ Sending file: ${filename}, size: ${row.data.length} bytes\n`);
     res.send(row.data);
   } catch (error: any) {
-    console.error('Download file error:', error);
+    console.error('❌ Download file error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
