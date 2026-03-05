@@ -249,7 +249,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         return { success: true, message: "Registration successful" };
       } catch (backendError: any) {
-        // If backend fails, save to local storage as temporary solution
+        // If the backend responded with a 400 it means the request was invalid
+        // (missing fields, duplicate username/email, etc).  In that case we
+        // should NOT silently save to local storage because the user needs to
+        // correct their input; instead return the server message so the form
+        // can show it.
+        const status = backendError.response?.status;
+        const serverMsg = backendError.response?.data?.error || backendError.message;
+        if (status === 400) {
+          return { success: false, message: serverMsg || 'Invalid registration data' };
+        }
+
+        // For other errors (network, 500, etc.) fall back to local storage
         console.warn('Backend registration failed, saving to local storage:', backendError.message);
         
         // Hash password using bcryptjs
