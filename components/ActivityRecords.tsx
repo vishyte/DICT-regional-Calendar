@@ -81,6 +81,8 @@ export function ActivityRecords() {
   const [approvalNotes, setApprovalNotes] = useState("");
   const [approvalAction, setApprovalAction] = useState<"approve" | "reject">("approve");
   const [approvingLoading, setApprovingLoading] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportProvince, setExportProvince] = useState<string>("all");
 
   // Real-time status update - refresh every minute
   useEffect(() => {
@@ -597,8 +599,10 @@ export function ActivityRecords() {
     setApprovalDialogOpen(true);
   };
 
-  const handleExport = async () => {
-    const exportData = filteredActivities.map((a) => ({
+  const handleExport = async (provinceOverride?: string) => {
+    const provinceFilter = provinceOverride ?? exportProvince ?? "all";
+    const exportList = filteredActivities.filter(a => provinceFilter === "all" || a.province === provinceFilter);
+    const exportData = exportList.map((a) => ({
       Project: a.project,
       Date: a.date,
       Location: a.location || a.province,
@@ -722,10 +726,42 @@ return (
             <p className="text-gray-600">Browse and manage all activities - upcoming, ongoing, completed, postponed, and cancelled</p>
           </div>
         </div>
-        <Button onClick={handleExport} className="gap-2 hover:shadow-lg hover:scale-105 transition-all duration-200">
-          <Download className="h-4 w-4" />
-          Export Records
-        </Button>
+        <>
+          <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2 hover:shadow-lg hover:scale-105 transition-all duration-200">
+                <Download className="h-4 w-4" />
+                Export Records
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Export Records</DialogTitle>
+                <DialogDescription>Select a province to export (or choose All)</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div>
+                  <p className="text-sm text-gray-600">Province</p>
+                  <Select value={exportProvince} onValueChange={(v) => setExportProvince(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Provinces</SelectItem>
+                      {provinces.map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setExportDialogOpen(false)}>Cancel</Button>
+                <Button onClick={() => { handleExport(exportProvince); setExportDialogOpen(false); }}>Export</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
       </div>
 
       <Alert className="bg-blue-50 border-blue-200">
