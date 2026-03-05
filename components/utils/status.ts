@@ -12,7 +12,8 @@ export function deriveDisplayStatus(a: any): DisplayStatus {
   if (!a) return "Scheduled";
 
   // For special administrative statuses, keep them as-is
-  const specialStatuses: DisplayStatus[] = ["For Approval", "Postponed", "Cancelled"];
+  // Preserve explicit administrative statuses (including Completed)
+  const specialStatuses: DisplayStatus[] = ["For Approval", "Postponed", "Cancelled", "Completed"];
   if (specialStatuses.includes(a.status as DisplayStatus)) {
     return a.status as DisplayStatus;
   }

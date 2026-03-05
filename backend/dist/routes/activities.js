@@ -341,7 +341,7 @@ router.post('/:id/approve', middleware_1.authenticateToken, async (req, res) => 
         res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 });
-// Reject activity (admin only)
+// Reject activity (admin only) - returns to Submission of Documents so staff can re-upload
 router.post('/:id/reject', middleware_1.authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
@@ -352,14 +352,14 @@ router.post('/:id/reject', middleware_1.authenticateToken, async (req, res) => {
         if (activityResult.rowCount === 0) {
             return res.status(404).json({ error: 'Activity not found' });
         }
-        // Update with rejection info
+        // Update with rejection info and return to submission status
         await database_1.default.query(`UPDATE activities SET 
         approved_by_id = ?, 
         approved_at = NOW(), 
         approval_notes = ?,
-        status = 'Rejected'
-      WHERE id = ?`, [adminId, approvalNotes || 'Rejected', id]);
-        res.json({ message: 'Activity rejected' });
+        status = 'Submission of Documents'
+      WHERE id = ?`, [adminId, approvalNotes || 'Rejected - please re-upload documents', id]);
+        res.json({ message: 'Activity rejected. Returned to staff for re-submission.' });
     }
     catch (error) {
         console.error('Reject activity error:', error);

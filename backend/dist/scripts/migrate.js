@@ -115,6 +115,14 @@ async function createTables() {
                 await database_1.default.query("ALTER TABLE activities ADD COLUMN toda_file_data BLOB");
                 console.log('✅ Added document upload columns to activities table');
             }
+            // Update status column to VARCHAR(50) to accommodate longer status values like "Submission of Documents"
+            try {
+                await database_1.default.query("ALTER TABLE activities ALTER COLUMN status TYPE VARCHAR(50);");
+                console.log('✅ Updated status column to VARCHAR(50)');
+            }
+            catch (alterErr) {
+                console.warn('Could not alter status column (may already be VARCHAR(50) or different DB):', alterErr);
+            }
         }
         catch (err) {
             // Non-fatal: log and continue
