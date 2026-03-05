@@ -64,6 +64,15 @@ async function runMigrations() {
       console.warn('Could not add document storage columns (they may already exist):', err?.message || err);
     }
 
+    // ensure approval columns exist
+    try {
+      await pool.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS approved_by_id INTEGER`);
+      await pool.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`);
+      await pool.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS approval_notes TEXT`);
+    } catch (err: any) {
+      console.warn('Could not add approval columns (they may already exist):', err?.message || err);
+    }
+
     console.log('Database migrations completed successfully');
   } catch (error) {
     console.error('Migration error:', error);

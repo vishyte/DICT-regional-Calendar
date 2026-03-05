@@ -59,6 +59,15 @@ async function runMigrations() {
             // some SQLite versions do not support IF NOT EXISTS; ignore errors
             console.warn('Could not add document storage columns (they may already exist):', err?.message || err);
         }
+        // ensure approval columns exist
+        try {
+            await database_1.default.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS approved_by_id INTEGER`);
+            await database_1.default.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`);
+            await database_1.default.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS approval_notes TEXT`);
+        }
+        catch (err) {
+            console.warn('Could not add approval columns (they may already exist):', err?.message || err);
+        }
         console.log('Database migrations completed successfully');
     }
     catch (error) {
