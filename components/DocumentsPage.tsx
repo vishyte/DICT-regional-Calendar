@@ -147,10 +147,16 @@ const handleSubmitFiles = async () => {
     try {
       if (approvalAction === "approve") {
         await activitiesAPI.approve(selectedActivity.id, approvalNotes);
-        toast.success("Activity approved successfully!");
+        toast.success("✅ Activity Approved", {
+          description: "The activity has been marked as Completed.",
+          duration: 3000
+        });
       } else {
         await activitiesAPI.reject(selectedActivity.id, approvalNotes);
-        toast.error("Activity rejected");
+        toast.info("📤 Activity Returned", {
+          description: "The activity has been returned to staff for re-submission. They will see the rejection reason in their Documents section.",
+          duration: 4000
+        });
       }
       
       setApprovalDialogOpen(false);
@@ -194,6 +200,7 @@ const handleSubmitFiles = async () => {
                     <TableHead>Project</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Notes</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -205,6 +212,14 @@ const handleSubmitFiles = async () => {
                       <TableCell>{formatDate(activity.date)}</TableCell>
                       <TableCell>
                         <Badge className="bg-yellow-600 hover:bg-yellow-700">Submission of Documents</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {activity.approvalNotes && (
+                          <div className="text-xs bg-red-50 border border-red-200 rounded p-2 text-red-700 max-w-xs">
+                            <p className="font-medium mb-1">🔙 Feedback from Admin:</p>
+                            <p>{activity.approvalNotes}</p>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button 

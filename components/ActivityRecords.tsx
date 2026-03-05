@@ -564,10 +564,16 @@ export function ActivityRecords() {
       
       if (approvalAction === "approve") {
         await activitiesAPI.approve(activityId, approvalNotes);
-        toast.success("Activity approved successfully!");
+        toast.success("✅ Activity Approved", {
+          description: "The activity has been marked as Completed.",
+          duration: 3000
+        });
       } else {
         await activitiesAPI.reject(activityId, approvalNotes);
-        toast.error("Activity rejected");
+        toast.info("📤 Activity Returned", {
+          description: "The activity has been returned to staff for re-submission. They will see the rejection reason in their Documents section.",
+          duration: 4000
+        });
       }
       
       setApprovalDialogOpen(false);
