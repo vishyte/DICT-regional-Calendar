@@ -34,6 +34,24 @@ router.get('/', async (req, res) => {
       LEFT JOIN users ap ON a.approved_by_id = ap.id
       ORDER BY a.date, a.time
     `);
+        // Fetch assigned personnel for all activities in one go (efficient, avoids N+1 queries)
+        const personnelResult = await database_1.default.query(`
+      SELECT ap.activity_id, u.username as id_number, u.first_name, u.last_name, u.email, ap.task
+      FROM assigned_personnel ap
+      JOIN users u ON ap.user_id = u.id
+    `);
+        const personnelByActivity = {};
+        for (const row of personnelResult.rows) {
+            const activityId = String(row.activity_id);
+            if (!personnelByActivity[activityId])
+                personnelByActivity[activityId] = [];
+            personnelByActivity[activityId].push({
+                idNumber: row.id_number,
+                fullName: `${row.first_name} ${row.last_name}`,
+                email: row.email,
+                task: row.task,
+            });
+        }
         const activities = result.rows.map((row) => ({
             id: row.id,
             name: row.name,
@@ -63,6 +81,7 @@ router.get('/', async (req, res) => {
             partnerInstitution: row.partner_institution,
             mode: row.mode,
             platform: row.platform,
+            assignedPersonnel: personnelByActivity[String(row.id)] || [],
             // Approval fields
             approvedBy: row.approved_by_id ? {
                 id: row.approved_by_id,
@@ -187,6 +206,27 @@ router.post('/:id/upload', middleware_1.authenticateToken, upload.fields([{ name
     }
     catch (error) {
         console.error('Upload files error:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
+    }
+});
+// Get assigned personnel for an activity
+router.get('/:id/assigned-personnel', middleware_1.authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await database_1.default.query(`SELECT u.username as id_number, u.first_name, u.last_name, u.email, ap.task
+       FROM assigned_personnel ap
+       JOIN users u ON ap.user_id = u.id
+       WHERE ap.activity_id = ?`, [id]);
+        const personnel = result.rows.map((r) => ({
+            idNumber: r.id_number,
+            fullName: `${r.first_name} ${r.last_name}`,
+            email: r.email,
+            task: r.task,
+        }));
+        res.json(personnel);
+    }
+    catch (error) {
+        console.error('Get assigned personnel error:', error);
         res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 });
