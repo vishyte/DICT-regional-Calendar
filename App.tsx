@@ -354,7 +354,7 @@ function AppContent() {
               <p className="text-xs text-gray-700 truncate mt-0.5">eGOV</p>
               <div className="mt-1">
                 <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
-                  Staff
+                  {(user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Staff')}
                 </span>
               </div>
             </div>

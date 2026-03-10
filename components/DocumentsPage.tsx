@@ -32,9 +32,13 @@ export function DocumentsPage() {
   const [femaleCount, setFemaleCount] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
-  // Check if user is admin or superadmin only - staff should not see approval section
-  // Handle case where user.role might be undefined (for local users)
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  // Determine role-based visibility
+  // - superadmin sees everything and can approve
+  // - admin sees activities within their project and can approve
+  // - staff sees only their own or assigned activities
+  const isSuperadmin = user?.role === "superadmin";
+  const isAdmin = user?.role === "admin";
+  const isAdminOrSuperadmin = isSuperadmin || isAdmin;
 
   // Get all activities and filter for pending, approval, and completed
   const groupedActivities = useMemo(() => {
@@ -42,12 +46,26 @@ export function DocumentsPage() {
 
     const flattened: any[] = Object.values(activities).flat();
 
+    const hasSameProject = (activity: any) => {
+      if (!activity?.project || !user?.project) return false;
+      return String(activity.project).toLowerCase() === String(user.project).toLowerCase();
+    };
+
     const pending = flattened.filter(activity => {
       const displayStatus = deriveDisplayStatus(activity);
       if (displayStatus !== "Submission of Documents") return false;
 
-      // Check if belongs to user's project
-      if (activity.project === user.project) return true;
+      // Superadmin sees all pending submissions
+      if (isSuperadmin) return true;
+
+      // Admins should NOT see pending submissions from other staff; they only see their own or those assigned to them.
+      if (isAdmin) {
+        if (activity.createdBy?.idNumber === user.idNumber) return true;
+        if (activity.assignedPersonnel?.some((ap: any) => ap.idNumber === user.idNumber)) return true;
+        return false;
+      }
+
+      // Staff/normal users see only their own or assigned activities
       if (activity.createdBy?.idNumber === user.idNumber) return true;
       if (activity.assignedPersonnel?.some((ap: any) => ap.idNumber === user.idNumber)) return true;
 
@@ -58,19 +76,21 @@ export function DocumentsPage() {
       const displayStatus = deriveDisplayStatus(activity);
       if (displayStatus !== "For Approval") return false;
 
-      // Admins see all activities awaiting approval
-      if (isAdmin) return true;
-      
-      // Regular users see only their project's activities
-      return activity.project === user.project;
+      if (isSuperadmin) return true;
+      if (isAdmin && hasSameProject(activity)) return true;
+
+      // Regular users see only their project's activities (as before)
+      return hasSameProject(activity);
     });
 
     const completed = flattened.filter(activity => {
       const displayStatus = deriveDisplayStatus(activity);
       if (displayStatus !== "Completed") return false;
 
-      // Check if belongs to user's project
-      if (activity.project === user.project) return true;
+      if (isSuperadmin) return true;
+      if (isAdmin && hasSameProject(activity)) return true;
+
+      // Staff/normal users see only their own or assigned activities
       if (activity.createdBy?.idNumber === user.idNumber) return true;
       if (activity.assignedPersonnel?.some((ap: any) => ap.idNumber === user.idNumber)) return true;
 
@@ -82,11 +102,19 @@ export function DocumentsPage() {
       forApproval: forApproval.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
       completed: completed.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     };
-  }, [activities, user, isAdmin]);
+  }, [activities, user, isAdmin, isSuperadmin]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  const getCreatorName = (activity: any) => {
+    const creator = activity?.createdBy;
+    if (!creator) return "—";
+    if (typeof creator === "string") return creator;
+    const fullName = creator.fullName || `${creator.firstName ?? ""} ${creator.lastName ?? ""}`.trim();
+    return fullName || creator.idNumber || "—";
   };
 
   const handleOpenSubmitDialog = (activity: any) => {
@@ -206,6 +234,7 @@ const handleSubmitFiles = async () => {
                     <TableHead>Activity Name</TableHead>
                     <TableHead>Project</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead>Created By</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Notes</TableHead>
                     <TableHead>Action</TableHead>
@@ -217,6 +246,7 @@ const handleSubmitFiles = async () => {
                       <TableCell className="font-medium">{activity.name}</TableCell>
                       <TableCell>{activity.project}</TableCell>
                       <TableCell>{formatDate(activity.date)}</TableCell>
+                      <TableCell>{getCreatorName(activity)}</TableCell>
                       <TableCell>
                         <Badge className="bg-yellow-600 hover:bg-yellow-700">Submission of Documents</Badge>
                       </TableCell>
@@ -252,8 +282,8 @@ const handleSubmitFiles = async () => {
         </CardContent>
       </Card>
 
-      {/* Approval of Documents Section - Only for Admins (admin or superadmin role) */}
-      {isAdmin && (
+      {/* Approval of Documents Section - Only for Admins/Superadmins */}
+      {isAdminOrSuperadmin && (
         <Card className="border-purple-200 bg-purple-50">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -339,6 +369,7 @@ const handleSubmitFiles = async () => {
                     <TableHead>Activity Name</TableHead>
                     <TableHead>Project</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead>Created By</TableHead>
                     <TableHead>Documents</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -349,6 +380,7 @@ const handleSubmitFiles = async () => {
                       <TableCell className="font-medium">{activity.name}</TableCell>
                       <TableCell>{activity.project}</TableCell>
                       <TableCell>{formatDate(activity.date)}</TableCell>
+                      <TableCell>{getCreatorName(activity)}</TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">
