@@ -36,6 +36,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
   const [selectedPersonnelId, setSelectedPersonnelId] = useState<string | undefined>(undefined);
   const [selectedProvince, setSelectedProvince] = useState<string>("");
   const [selectedCity, setSelectedCity] = useState<string>("");
+  const [otherCity, setOtherCity] = useState<string>("");
   const [activityNameBeforeFor, setActivityNameBeforeFor] = useState<string>("");
   const [activityNameAfterFor, setActivityNameAfterFor] = useState<string>("");
   const [selectedMode, setSelectedMode] = useState<string>("");
@@ -388,13 +389,25 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
       });
       return;
     }
+
+    // If user selected "Other" for city, require them to type a city name
+    if (selectedCity === "Other" && !otherCity.trim()) {
+      toast.error("Please enter the city name", {
+        description: "You selected 'Other' for city, so please type the city name.",
+      });
+      return;
+    }
+
     const project = selectedProjects.join(", "); // Join multiple projects with comma
     const province = String(data.get("province") || "");
-    const city = String(data.get("city") || "");
+
+    // Use the typed city if the user selected "Other" (or if they manually typed a city)
+    const resolvedCity = selectedCity === "Other" ? otherCity.trim() : selectedCity;
+
     // If province is "Davao City", use it as location without city
     const location = province === "Davao City" 
       ? province 
-      : `${province}${city ? `, ${city}` : ''}`.trim();
+      : `${province}${resolvedCity ? `, ${resolvedCity}` : ''}`.trim();
     const venue = String(data.get("barangay") || "");
     const venueAddress = String(data.get("venueAddress") || "").trim();
     const facilitator = String(data.get("resourcePerson") || "");
@@ -980,6 +993,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                   onValueChange={(value) => {
                     setSelectedProvince(value);
                     setSelectedCity(""); // Reset city when province changes
+                    setOtherCity("");
                   }}
                 >
                   <SelectTrigger>
@@ -1005,7 +1019,10 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                     required={selectedProvince !== "Davao City"}
                     name="city"
                     value={selectedCity || ""}
-                    onValueChange={setSelectedCity}
+                    onValueChange={(value) => {
+                      setSelectedCity(value);
+                      if (value !== "Other") setOtherCity("");
+                    }}
                     disabled={!selectedProvince}
                   >
                     <SelectTrigger>
@@ -1021,28 +1038,38 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                       </SelectContent>
                     )}
                   </Select>
-                  {!selectedProvince && (
-                    <p className="text-xs text-gray-500">Select a province first to see available cities</p>
+
+                  {selectedCity === "Other" && (
+                    <Input
+                      id="otherCity"
+                      name="otherCity"
+                      value={otherCity}
+                      onChange={(e) => setOtherCity(e.target.value)}
+                      placeholder="Type city name"
+                      required
+                    />
                   )}
                 </div>
               )}
 
-              {/* Congressional District */}
-              <div className="space-y-2">
-                <Label htmlFor="district">
-                  Congressional District <span className="text-red-500">*</span>
-                </Label>
-                <Select required name="district">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select district" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1st">1st District</SelectItem>
-                    <SelectItem value="2nd">2nd District</SelectItem>
-                    <SelectItem value="3rd">3rd District</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Congressional District - hide when Davao City */}
+              {selectedProvince !== "Davao City" && (
+                <div className="space-y-2">
+                  <Label htmlFor="district">
+                    Congressional District <span className="text-red-500">*</span>
+                  </Label>
+                  <Select required name="district">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select district" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1st">1st District</SelectItem>
+                      <SelectItem value="2nd">2nd District</SelectItem>
+                      <SelectItem value="3rd">3rd District</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Barangay */}
               <div className="space-y-2">

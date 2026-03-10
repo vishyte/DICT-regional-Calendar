@@ -243,7 +243,7 @@ function AppContent() {
                 <DICTLogo className="h-32 w-auto" />
                 <div>
                   <h1 className="text-2xl font-bold text-blue-600">Superadmin Dashboard</h1>
-                  <p className="text-sm text-gray-600">Logged in as: {superadminUser.username}</p>
+                  <p className="text-sm text-gray-600">Logged in as: Admin</p>
                 </div>
               </div>
               <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
@@ -345,17 +345,18 @@ function AppContent() {
       <div className="flex gap-0">
         <nav className="w-56 bg-gray-50 shadow-lg py-8 px-4 border-r border-gray-200">
           {/* user summary */}
-          <div className="mb-4 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-blue-500 text-white flex items-center justify-center text-lg font-semibold">
-              {user?.firstName?.[0] || user?.fullName?.[0] || "U"}
+          <div className="mb-4 flex flex-col items-center text-center gap-2">
+            <div className="h-12 w-12 rounded-full bg-blue-500 text-white flex items-center justify-center text-lg font-semibold">
+              { (user?.firstName?.[0] || user?.fullName?.[0] || 'S') }
             </div>
-            <div>
-              <p className="font-medium text-gray-900">
-                {user?.firstName || user?.fullName}
-              </p>
-              <p className="text-sm text-gray-600 truncate">
-                {user?.project}
-              </p>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900 truncate">{(user?.fullName || `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim()).toUpperCase()}</p>
+              <p className="text-xs text-gray-700 truncate mt-0.5">eGOV</p>
+              <div className="mt-1">
+                <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                  Staff
+                </span>
+              </div>
             </div>
           </div>
           <hr className="border-gray-300 my-4" />
