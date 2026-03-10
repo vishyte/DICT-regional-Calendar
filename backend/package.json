@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Backend for DICT Regional Calendar - handles user registration and calendar records",
   "main": "dist/server.js",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
