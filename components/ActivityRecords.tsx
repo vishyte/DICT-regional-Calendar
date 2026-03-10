@@ -612,6 +612,7 @@ export function ActivityRecords() {
       provinceFilter === "all" || normalize(a.province).includes(normalize(provinceFilter))
     );
     const exportData = exportList.map((a) => ({
+      Title: a.name,
       Project: a.project,
       Date: a.date,
       Location: a.location || a.province,
