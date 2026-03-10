@@ -101,11 +101,32 @@ router.get('/', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+// Helper: sync assigned personnel for an activity
+async function syncAssignedPersonnel(activityId, assignedPersonnel) {
+    // Clear existing assignments
+    await database_1.default.query('DELETE FROM assigned_personnel WHERE activity_id = ?', [activityId]);
+    if (!assignedPersonnel || !Array.isArray(assignedPersonnel) || assignedPersonnel.length === 0) {
+        return;
+    }
+    for (const person of assignedPersonnel) {
+        const idNumber = person.idNumber || person.id;
+        if (!idNumber)
+            continue;
+        // Find the user record (username is treated as idNumber)
+        const userRes = await database_1.default.query('SELECT id FROM users WHERE username = ? LIMIT 1', [idNumber]);
+        const userRow = userRes.rows[0];
+        if (!userRow) {
+            console.warn('Assigned personnel user not found:', idNumber);
+            continue;
+        }
+        await database_1.default.query('INSERT INTO assigned_personnel (activity_id, user_id, task) VALUES (?, ?, ?)', [activityId, userRow.id, person.task || '']);
+    }
+}
 // Create activity
 router.post('/', middleware_1.authenticateToken, async (req, res) => {
     try {
         console.log('Creating activity, user:', req.user);
-        const { name, date, endDate, time, endTime, location, venue, sector, project, description, participants, facilitator, priority, partnerInstitution, mode, platform, venueAddress } = req.body;
+        const { name, date, endDate, time, endTime, location, venue, sector, project, description, participants, facilitator, priority, partnerInstitution, mode, platform, venueAddress, assignedPersonnel } = req.body;
         console.log('Activity data:', { name, date, time, endTime, location, venue, sector, project });
         // Validate required fields
         if (!name || !date || !time || !endTime || !location || !venue || !sector || !project) {
@@ -123,6 +144,10 @@ router.post('/', middleware_1.authenticateToken, async (req, res) => {
         // Get the inserted activity ID
         const insertedId = result.rows[0]?.id;
         console.log('Inserted ID:', insertedId);
+        // Save assigned personnel (if provided)
+        if (insertedId && assignedPersonnel) {
+            await syncAssignedPersonnel(insertedId, assignedPersonnel);
+        }
         const insertedResult = await database_1.default.query('SELECT * FROM activities WHERE id = ?', [insertedId]);
         const activity = insertedResult.rows[0];
         if (!activity) {
@@ -282,7 +307,10 @@ router.get('/:id/file/:type', middleware_1.authenticateToken, async (req, res) =
 router.put('/:id', middleware_1.authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
-        const updates = req.body;
+        const updates = { ...req.body };
+        // Sync assigned personnel separately (if provided)
+        const assignedPersonnel = updates.assignedPersonnel;
+        delete updates.assignedPersonnel;
         // Map camelCase keys to snake_case for database columns
         const fieldMap = {
             'endDate': 'end_date',
@@ -317,16 +345,21 @@ router.put('/:id', middleware_1.authenticateToken, async (req, res) => {
                 values.push(updates[key]);
             }
         });
-        if (fields.length === 0) {
+        if (fields.length === 0 && assignedPersonnel === undefined) {
             return res.status(400).json({ error: 'No fields to update' });
         }
-        values.push(id);
-        const query = `UPDATE activities SET ${fields.join(', ')} WHERE id = ?`;
-        console.log('Update activity query:', query);
-        console.log('Values:', values);
-        const result = await database_1.default.query(query, values);
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: 'Activity not found' });
+        if (fields.length > 0) {
+            values.push(id);
+            const query = `UPDATE activities SET ${fields.join(', ')} WHERE id = ?`;
+            console.log('Update activity query:', query);
+            console.log('Values:', values);
+            const result = await database_1.default.query(query, values);
+            if (result.rowCount === 0) {
+                return res.status(404).json({ error: 'Activity not found' });
+            }
+        }
+        if (assignedPersonnel !== undefined) {
+            await syncAssignedPersonnel(Number(id), assignedPersonnel);
         }
         res.json({ message: 'Activity updated' });
     }

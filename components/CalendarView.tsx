@@ -791,8 +791,12 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                         </div>
                       </div>
                     )}
-                    {loadingAssignedPersonnel && (
+                    {loadingAssignedPersonnel ? (
                       <div className="text-sm text-gray-600">Loading assigned personnel...</div>
+                    ) : (
+                      <div className="text-sm text-gray-600">
+                        {selectedAssignedPersonnel.length === 0 ? 'No assigned personnel.' : ''}
+                      </div>
                     )}
                   </div>
 
