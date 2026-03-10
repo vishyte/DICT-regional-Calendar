@@ -339,6 +339,7 @@ const handleSubmitFiles = async () => {
                     <TableHead>Activity Name</TableHead>
                     <TableHead>Project</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead>Documents</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -348,6 +349,66 @@ const handleSubmitFiles = async () => {
                       <TableCell className="font-medium">{activity.name}</TableCell>
                       <TableCell>{activity.project}</TableCell>
                       <TableCell>{formatDate(activity.date)}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium">Attendance:</span>
+                            {activity.attendanceFileName ? (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const resp = await api.get(`/activities/${activity.id}/file/attendance`, { responseType: 'blob' });
+                                    const blob = new Blob([resp.data]);
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = activity.attendanceFileName || 'attendance';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    a.remove();
+                                    setTimeout(() => URL.revokeObjectURL(url), 60000);
+                                  } catch (err) {
+                                    console.error('Failed to download attendance file', err);
+                                  }
+                                }}
+                                className="text-blue-600 hover:underline text-xs"
+                              >
+                                Download
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-400">N/A</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium">TODA:</span>
+                            {activity.todaFileName ? (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const resp = await api.get(`/activities/${activity.id}/file/toda`, { responseType: 'blob' });
+                                    const blob = new Blob([resp.data]);
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = activity.todaFileName || 'toda';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    a.remove();
+                                    setTimeout(() => URL.revokeObjectURL(url), 60000);
+                                  } catch (err) {
+                                    console.error('Failed to download TODA file', err);
+                                  }
+                                }}
+                                className="text-blue-600 hover:underline text-xs"
+                              >
+                                Download
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-400">N/A</span>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge className="bg-green-600 hover:bg-green-700">Completed</Badge>
                       </TableCell>

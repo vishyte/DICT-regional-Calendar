@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useActivities, type Activity as CtxActivity, type DayActivities } from "./ActivitiesContext";
+import { activitiesAPI } from "../utils/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -39,6 +40,8 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+  const [selectedAssignedPersonnel, setSelectedAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task?: string }>>([]);
+  const [loadingAssignedPersonnel, setLoadingAssignedPersonnel] = useState(false);
   const [selectedHoliday, setSelectedHoliday] = useState<any | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -522,7 +525,19 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     key={activity.id}
                     onClick={() => {
                       setSelectedActivity(activity);
+                      setSelectedAssignedPersonnel([]);
+                      setLoadingAssignedPersonnel(true);
                       setViewDialogOpen(true);
+
+                      activitiesAPI.getAssignedPersonnel(activity.id)
+                        .then((resp) => {
+                          setSelectedAssignedPersonnel(resp.data || []);
+                        })
+                        .catch((err) => {
+                          console.warn('Failed to load assigned personnel:', err);
+                          setSelectedAssignedPersonnel([]);
+                        })
+                        .finally(() => setLoadingAssignedPersonnel(false));
                     }}
                     className={`p-4 rounded-lg space-y-2 cursor-pointer transition-all border 
                       ${activity.priority === "Urgent" ? "bg-red-50 border-red-300 hover:bg-red-100 hover:border-red-400" : ""}
@@ -563,6 +578,19 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                       <MapPin className="h-4 w-4" />
                       {activity.location}
                     </div>
+                    {activity.assignedPersonnel && activity.assignedPersonnel.length > 0 && (
+                      <div className="flex items-start gap-2 text-sm text-gray-600">
+                        <Users className="h-4 w-4 mt-1" />
+                        <div className="space-y-0.5">
+                          <div className="font-medium">Assigned Personnel</div>
+                          <div className="text-xs">
+                            {activity.assignedPersonnel
+                              .map((p) => `${p.fullName}${p.task ? ` (${p.task})` : ''}`)
+                              .join(', ')}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {activity.createdBy && (
                       <div className="text-xs text-gray-600">
                         Created by {activity.createdBy.fullName.charAt(0).toUpperCase() + activity.createdBy.fullName.slice(1).toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
@@ -623,19 +651,20 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           {selectedActivity && (() => {
             const displaySelectedStatus = deriveDisplayStatus(selectedActivity) || selectedActivity.status;
+            const startDateStr = new Date(selectedActivity.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+            const endDateStr = selectedActivity.endDate && selectedActivity.endDate !== selectedActivity.date
+              ? new Date(selectedActivity.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              : null;
+
             return (
             <>
               <DialogHeader>
                 <DialogTitle className="text-blue-900">{selectedActivity.name}</DialogTitle>
                 <DialogDescription>
-                  {(() => {
-                    const startDate = new Date(selectedActivity.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-                    if (selectedActivity.endDate && selectedActivity.endDate !== selectedActivity.date) {
-                      const endDate = new Date(selectedActivity.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-                      return `${startDate} - ${endDate} • ${formatTimeDisplay(selectedActivity.time)} - ${formatTimeDisplay(selectedActivity.endTime)}`;
-                    }
-                    return `${startDate} • ${formatTimeDisplay(selectedActivity.time)} - ${formatTimeDisplay(selectedActivity.endTime)}`;
-                  })()}
+                  {endDateStr
+                    ? `${startDateStr} - ${endDateStr} • ${formatTimeDisplay(selectedActivity.time)} - ${formatTimeDisplay(selectedActivity.endTime)}`
+                    : `${startDateStr} • ${formatTimeDisplay(selectedActivity.time)} - ${formatTimeDisplay(selectedActivity.endTime)}`
+                  }
                 </DialogDescription>
               </DialogHeader>
 
@@ -661,6 +690,24 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     <Badge className="bg-red-600 text-white">
                       ⚠️ URGENT PRIORITY
                     </Badge>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+                  <div className="flex items-start gap-2">
+                    <Calendar className="h-4 w-4 mt-1" />
+                    <div>
+                      <div className="font-medium">Start Date</div>
+                      <div>{startDateStr}</div>
+                    </div>
+                  </div>
+                  {endDateStr && (
+                    <div className="flex items-start gap-2">
+                      <Calendar className="h-4 w-4 mt-1" />
+                      <div>
+                        <div className="font-medium">End Date</div>
+                        <div>{endDateStr}</div>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -730,6 +777,23 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                         <div className="text-gray-900">{selectedActivity.participants} attendees</div>
                       </div>
                     </div>
+
+                    {(selectedAssignedPersonnel && selectedAssignedPersonnel.length > 0) && (
+                      <div className="flex items-start gap-2">
+                        <Users className="h-5 w-5 text-blue-600 mt-0.5" />
+                        <div>
+                          <div className="text-sm text-gray-600">Assigned Personnel</div>
+                          <div className="text-gray-900 text-sm">
+                            {selectedAssignedPersonnel
+                              .map((p) => `${p.fullName}${p.task ? ` (${p.task})` : ''}`)
+                              .join(', ')}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {loadingAssignedPersonnel && (
+                      <div className="text-sm text-gray-600">Loading assigned personnel...</div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
