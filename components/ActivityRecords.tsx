@@ -607,7 +607,10 @@ export function ActivityRecords() {
 
   const handleExport = async (provinceOverride?: string) => {
     const provinceFilter = provinceOverride ?? exportProvince ?? "all";
-    const exportList = filteredActivities.filter(a => provinceFilter === "all" || a.province === provinceFilter);
+    const normalize = (s: string) => (s || "").toLowerCase().trim();
+    const exportList = filteredActivities.filter(a =>
+      provinceFilter === "all" || normalize(a.province).includes(normalize(provinceFilter))
+    );
     const exportData = exportList.map((a) => ({
       Project: a.project,
       Date: a.date,
