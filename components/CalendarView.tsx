@@ -433,15 +433,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
         <Button
-          onClick={() => {
-            if (selectedDate && isPastDate(selectedDate)) {
-              toast.error("Cannot create on a past date", {
-                description: "Select today or a future date to create an activity.",
-              });
-              return;
-            }
-            onNavigateToActivity(selectedDate ? formatDateKey(selectedDate) : undefined);
-          }}
+          onClick={() => onNavigateToActivity(selectedDate ? formatDateKey(selectedDate) : undefined)}
           className="bg-blue-600 hover:bg-blue-700 gap-2"
         >
           <CalendarPlus className="h-4 w-4" />
@@ -628,15 +620,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     <p>No activities scheduled for this date</p>
                     <Button
                       variant="link"
-                      onClick={() => {
-                        if (selectedDate && isPastDate(selectedDate)) {
-                          toast.error("Cannot create on a past date", {
-                            description: "Select today or a future date to create an activity.",
-                          });
-                          return;
-                        }
-                        onNavigateToActivity(selectedDate ? formatDateKey(selectedDate) : undefined)
-                      }}
+                      onClick={() => onNavigateToActivity(selectedDate ? formatDateKey(selectedDate) : undefined)}
                       className="mt-2 text-blue-600"
                     >
                       Create an activity
