@@ -59,7 +59,7 @@ export const activitiesAPI = {
   delete: (id: number) => api.delete(`/activities/${id}`),
   uploadDocuments: (id: number, form: FormData) => api.post(`/activities/${id}/upload`, form, { headers: { 'Content-Type': 'multipart/form-data' } }),
   getAssignedPersonnel: (id: number) => api.get(`/activities/${id}/assigned-personnel`),
-  approve: (id: number, approvalNotes?: string) => api.post(`/activities/${id}/approve`, { approvalNotes }),
+  approve: (id: number, approvalNotes?: string, requestedStatus?: string) => api.post(`/activities/${id}/approve`, { approvalNotes, requestedStatus }),
   reject: (id: number, approvalNotes?: string) => api.post(`/activities/${id}/reject`, { approvalNotes }),
 };
 

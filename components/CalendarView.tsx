@@ -185,8 +185,17 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
       updatedActivity.date = newDate;
     }
 
-    // If status changed
-    if (changeStatus) {
+    // If status or date changed in a way that requires admin approval (reschedule/postpone/cancel)
+    const isRescheduleRequest = dateChanged && !changeStatus;
+    const isStatusChangeRequest = changeStatus === "Postponed" || changeStatus === "Cancelled";
+
+    if (isRescheduleRequest || isStatusChangeRequest) {
+      // Request approval from admin for these kinds of changes
+      updatedActivity.status = "For Approval" as any;
+      updatedActivity.requestedStatus = isStatusChangeRequest ? changeStatus : "Rescheduled";
+      updatedActivity.changeReason = changeReason || undefined;
+      updatedActivity.changeDate = new Date().toISOString();
+    } else if (changeStatus) {
       // Marking as Completed should transition to "Submission of Documents" (yellow)
       if (changeStatus === "Completed") {
         updatedActivity.status = "Submission of Documents" as any;

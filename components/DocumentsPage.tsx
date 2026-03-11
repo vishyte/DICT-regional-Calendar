@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { AlertCircle, CheckCircle2, Upload, FileUp, CheckCircle, XCircle } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
-export function DocumentsPage() {
+export function DocumentsPage({ onlyApprovals }: { onlyApprovals?: boolean }) {
   const { activities, updateActivity, uploadDocuments } = useActivities();
   const { user } = useAuth();
   const [submittingId, setSubmittingId] = useState<string | null>(null);
@@ -73,8 +73,9 @@ export function DocumentsPage() {
     });
 
     const forApproval = flattened.filter(activity => {
-      const displayStatus = deriveDisplayStatus(activity);
-      if (displayStatus !== "For Approval") return false;
+      // Only show approval requests (reschedule / postpone / cancel)
+      // (document submission uses status "For Approval" too, but is not handled here)
+      if (!activity.requestedStatus) return false;
 
       if (isSuperadmin) return true;
       if (isAdmin && hasSameProject(activity)) return true;
@@ -181,9 +182,9 @@ const handleSubmitFiles = async () => {
     setApprovingLoading(true);
     try {
       if (approvalAction === "approve") {
-        await activitiesAPI.approve(selectedActivity.id, approvalNotes);
+        await activitiesAPI.approve(selectedActivity.id, approvalNotes, selectedActivity.requestedStatus);
         toast.success("✅ Activity Approved", {
-          description: "The activity has been marked as Completed.",
+          description: "The activity has been updated accordingly.",
           duration: 3000
         });
       } else {
@@ -212,75 +213,77 @@ const handleSubmitFiles = async () => {
     <div className="space-y-8">
       <Toaster position="top-right" />
       <div>
-        <h1 className="text-3xl font-bold mb-2">Documents</h1>
-        <p className="text-gray-600">Manage and track activity submissions and completions</p>
+        <h1 className="text-3xl font-bold mb-2">{onlyApprovals ? 'Activities Approval' : 'Documents'}</h1>
+        <p className="text-gray-600">{onlyApprovals ? 'Approve requested changes and document submissions.' : 'Manage and track activity submissions and completions'}</p>
       </div>
 
       {/* Pending Documents Section */}
-      <Card className="border-yellow-200 bg-yellow-50">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-yellow-600" />
-            <CardTitle className="text-yellow-800">Pending Submissions ({groupedActivities.pending.length})</CardTitle>
-          </div>
-          <CardDescription>Activities awaiting document submission</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {groupedActivities.pending.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Activity Name</TableHead>
-                    <TableHead>Project</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Created By</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead>Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {groupedActivities.pending.map((activity) => (
-                    <TableRow key={activity.id} className="hover:bg-yellow-100">
-                      <TableCell className="font-medium">{activity.name}</TableCell>
-                      <TableCell>{activity.project}</TableCell>
-                      <TableCell>{formatDate(activity.date)}</TableCell>
-                      <TableCell>{getCreatorName(activity)}</TableCell>
-                      <TableCell>
-                        <Badge className="bg-yellow-600 hover:bg-yellow-700">Submission of Documents</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {activity.approvalNotes && (
-                          <div className="text-xs bg-red-50 border border-red-200 rounded p-2 text-red-700 max-w-xs">
-                            <p className="font-medium mb-1">🔙 Feedback from Admin:</p>
-                            <p>{activity.approvalNotes}</p>
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button 
-                          onClick={() => handleOpenSubmitDialog(activity)}
-                          disabled={submittingId === activity.id}
-                          size="sm"
-                          className="gap-2 bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 transition-all duration-200"
-                        >
-                          <Upload className="h-4 w-4" />
-                          {submittingId === activity.id ? 'Submitting...' : 'Submit'}
-                        </Button>
-                      </TableCell>
+      {!onlyApprovals && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-yellow-600" />
+              <CardTitle className="text-yellow-800">Pending Submissions ({groupedActivities.pending.length})</CardTitle>
+            </div>
+            <CardDescription>Activities awaiting document submission</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {groupedActivities.pending.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Activity Name</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Created By</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead>Action</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-yellow-700">
-              <p>No pending submissions</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {groupedActivities.pending.map((activity) => (
+                      <TableRow key={activity.id} className="hover:bg-yellow-100">
+                        <TableCell className="font-medium">{activity.name}</TableCell>
+                        <TableCell>{activity.project}</TableCell>
+                        <TableCell>{formatDate(activity.date)}</TableCell>
+                        <TableCell>{getCreatorName(activity)}</TableCell>
+                        <TableCell>
+                          <Badge className="bg-yellow-600 hover:bg-yellow-700">Submission of Documents</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {activity.approvalNotes && (
+                            <div className="text-xs bg-red-50 border border-red-200 rounded p-2 text-red-700 max-w-xs">
+                              <p className="font-medium mb-1">🔙 Feedback from Admin:</p>
+                              <p>{activity.approvalNotes}</p>
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            onClick={() => handleOpenSubmitDialog(activity)}
+                            disabled={submittingId === activity.id}
+                            size="sm"
+                            className="gap-2 bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:scale-105 transition-all duration-200"
+                          >
+                            <Upload className="h-4 w-4" />
+                            {submittingId === activity.id ? 'Submitting...' : 'Submit'}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-yellow-700">
+                <p>No pending submissions</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Approval of Documents Section - Only for Admins/Superadmins */}
       {isAdminOrSuperadmin && (
@@ -288,9 +291,9 @@ const handleSubmitFiles = async () => {
           <CardHeader>
             <div className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-purple-600" />
-              <CardTitle className="text-purple-800">Approval of Documents ({groupedActivities.forApproval.length})</CardTitle>
+              <CardTitle className="text-purple-800">Approval Requests ({groupedActivities.forApproval.length})</CardTitle>
             </div>
-            <CardDescription>Activities awaiting approval after document submission</CardDescription>
+            <CardDescription>Requests for reschedule / postponement / cancellation</CardDescription>
           </CardHeader>
           <CardContent>
             {groupedActivities.forApproval.length > 0 ? (
@@ -314,7 +317,14 @@ const handleSubmitFiles = async () => {
                         <TableCell>{formatDate(activity.date)}</TableCell>
                         <TableCell>{activity.createdBy?.fullName || "—"}</TableCell>
                         <TableCell>
-                          <Badge className="bg-purple-600 hover:bg-purple-700">For Approval</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-purple-600 hover:bg-purple-700">For Approval</Badge>
+                            {activity.requestedStatus && (
+                              <span className="text-xs text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+                                Requested: {activity.requestedStatus}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
@@ -352,110 +362,112 @@ const handleSubmitFiles = async () => {
       )}
 
       {/* Completed Documents Section */}
-      <Card className="border-green-200 bg-green-50">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-green-600" />
-            <CardTitle className="text-green-800">Completed Activities ({groupedActivities.completed.length})</CardTitle>
-          </div>
-          <CardDescription>Successfully completed activities</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {groupedActivities.completed.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Activity Name</TableHead>
-                    <TableHead>Project</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Created By</TableHead>
-                    <TableHead>Documents</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {groupedActivities.completed.map((activity) => (
-                    <TableRow key={activity.id} className="hover:bg-green-100">
-                      <TableCell className="font-medium">{activity.name}</TableCell>
-                      <TableCell>{activity.project}</TableCell>
-                      <TableCell>{formatDate(activity.date)}</TableCell>
-                      <TableCell>{getCreatorName(activity)}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium">Attendance:</span>
-                            {activity.attendanceFileName ? (
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const resp = await api.get(`/activities/${activity.id}/file/attendance`, { responseType: 'blob' });
-                                    const blob = new Blob([resp.data]);
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = activity.attendanceFileName || 'attendance';
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    a.remove();
-                                    setTimeout(() => URL.revokeObjectURL(url), 60000);
-                                  } catch (err) {
-                                    console.error('Failed to download attendance file', err);
-                                  }
-                                }}
-                                className="text-blue-600 hover:underline text-xs"
-                              >
-                                Download
-                              </button>
-                            ) : (
-                              <span className="text-xs text-gray-400">N/A</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium">TODA:</span>
-                            {activity.todaFileName ? (
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const resp = await api.get(`/activities/${activity.id}/file/toda`, { responseType: 'blob' });
-                                    const blob = new Blob([resp.data]);
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = url;
-                                    a.download = activity.todaFileName || 'toda';
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    a.remove();
-                                    setTimeout(() => URL.revokeObjectURL(url), 60000);
-                                  } catch (err) {
-                                    console.error('Failed to download TODA file', err);
-                                  }
-                                }}
-                                className="text-blue-600 hover:underline text-xs"
-                              >
-                                Download
-                              </button>
-                            ) : (
-                              <span className="text-xs text-gray-400">N/A</span>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className="bg-green-600 hover:bg-green-700">Completed</Badge>
-                      </TableCell>
+      {!onlyApprovals && (
+        <Card className="border-green-200 bg-green-50">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <CardTitle className="text-green-800">Completed Activities ({groupedActivities.completed.length})</CardTitle>
+            </div>
+            <CardDescription>Successfully completed activities</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {groupedActivities.completed.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Activity Name</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Created By</TableHead>
+                      <TableHead>Documents</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-green-700">
-              <p>No completed activities</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {groupedActivities.completed.map((activity) => (
+                      <TableRow key={activity.id} className="hover:bg-green-100">
+                        <TableCell className="font-medium">{activity.name}</TableCell>
+                        <TableCell>{activity.project}</TableCell>
+                        <TableCell>{formatDate(activity.date)}</TableCell>
+                        <TableCell>{getCreatorName(activity)}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium">Attendance:</span>
+                              {activity.attendanceFileName ? (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const resp = await api.get(`/activities/${activity.id}/file/attendance`, { responseType: 'blob' });
+                                      const blob = new Blob([resp.data]);
+                                      const url = URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = activity.attendanceFileName || 'attendance';
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      a.remove();
+                                      setTimeout(() => URL.revokeObjectURL(url), 60000);
+                                    } catch (err) {
+                                      console.error('Failed to download attendance file', err);
+                                    }
+                                  }}
+                                  className="text-blue-600 hover:underline text-xs"
+                                >
+                                  Download
+                                </button>
+                              ) : (
+                                <span className="text-xs text-gray-400">N/A</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium">TODA:</span>
+                              {activity.todaFileName ? (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const resp = await api.get(`/activities/${activity.id}/file/toda`, { responseType: 'blob' });
+                                      const blob = new Blob([resp.data]);
+                                      const url = URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = activity.todaFileName || 'toda';
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      a.remove();
+                                      setTimeout(() => URL.revokeObjectURL(url), 60000);
+                                    } catch (err) {
+                                      console.error('Failed to download TODA file', err);
+                                    }
+                                  }}
+                                  className="text-blue-600 hover:underline text-xs"
+                                >
+                                  Download
+                                </button>
+                              ) : (
+                                <span className="text-xs text-gray-400">N/A</span>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className="bg-green-600 hover:bg-green-700">Completed</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-green-700">
+                <p>No completed activities</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Submit Activity Files Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

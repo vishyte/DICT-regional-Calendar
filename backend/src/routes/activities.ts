@@ -89,6 +89,7 @@ router.get('/', async (req: AuthRequest, res) => {
       } : null,
       approvedAt: row.approved_at ? formatDate(row.approved_at) : null,
       approvalNotes: row.approval_notes,
+      requestedStatus: row.requested_status,
       attendanceFileName: row.attendance_file_name,
       todaFileName: row.toda_file_name,
       // we don't send file_data here; frontend will call download endpoint if needed
@@ -367,6 +368,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
       'partnerInstitution': 'partner_institution',
       'changeReason': 'change_reason',
       'changeDate': 'change_date',
+      'requestedStatus': 'requested_status',
       'timeStart': 'time',
       'timeEnd': 'end_time',
       'approvedBy': 'approved_by_id',
@@ -461,16 +463,31 @@ router.post('/:id/approve', authenticateToken, async (req: AuthRequest, res) => 
       return res.status(404).json({ error: 'Activity not found' });
     }
 
-    // Update with approval info and change status to Completed
-    await pool.query(
-      `UPDATE activities SET 
-        approved_by_id = ?, 
-        approved_at = NOW(), 
-        approval_notes = ?,
-        status = 'Completed'
-      WHERE id = ?`,
-      [adminId, approvalNotes || null, id]
-    );
+    const activityRow: any = activityResult.rows[0];
+    const requestedStatusFromBody: string | undefined = req.body.requestedStatus;
+    const requestedStatus: string | null = requestedStatusFromBody ?? activityRow.requested_status;
+
+    // Determine the resulting status after approval
+    let newStatus = 'Completed';
+    if (requestedStatus) {
+      if (requestedStatus === 'Postponed' || requestedStatus === 'Cancelled') {
+        newStatus = requestedStatus;
+      } else if (requestedStatus === 'Rescheduled') {
+        newStatus = 'Scheduled';
+      } else {
+        newStatus = requestedStatus;
+      }
+    }
+
+    const query = `UPDATE activities SET 
+      approved_by_id = ?, 
+      approved_at = NOW(), 
+      approval_notes = ?,
+      status = ?,
+      requested_status = NULL
+    WHERE id = ?`;
+
+    await pool.query(query, [adminId, approvalNotes || null, newStatus, id]);
 
     res.json({ message: 'Activity approved successfully' });
   } catch (error: any) {
@@ -479,7 +496,7 @@ router.post('/:id/approve', authenticateToken, async (req: AuthRequest, res) => 
   }
 });
 
-// Reject activity (admin only) - returns to Submission of Documents so staff can re-upload
+// Reject activity (admin only)
 router.post('/:id/reject', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
@@ -492,16 +509,39 @@ router.post('/:id/reject', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Activity not found' });
     }
 
-    // Update with rejection info and return to submission status
-    await pool.query(
-      `UPDATE activities SET 
-        approved_by_id = ?, 
-        approved_at = NOW(), 
-        approval_notes = ?,
-        status = 'Submission of Documents'
-      WHERE id = ?`,
-      [adminId, approvalNotes || 'Rejected - please re-upload documents', id]
-    );
+    const activityRow: any = activityResult.rows[0];
+    const requestedStatus: string | null = activityRow.requested_status;
+
+    // Determine the status after rejection
+    let newStatus = 'Submission of Documents';
+    let revertDateToOriginal = false;
+    if (requestedStatus) {
+      // If the request was for rescheduling/postponing/cancelling, revert to scheduled state
+      newStatus = 'Scheduled';
+      if (requestedStatus === 'Rescheduled' && activityRow.original_date) {
+        revertDateToOriginal = true;
+      }
+    }
+
+    // Build update query
+    const updates: string[] = [
+      'approved_by_id = ?',
+      'approved_at = NOW()',
+      'approval_notes = ?',
+      'status = ?',
+      'requested_status = NULL'
+    ];
+    const values: any[] = [adminId, approvalNotes || 'Rejected - please re-upload documents', newStatus];
+
+    if (revertDateToOriginal) {
+      updates.push('date = ?', 'original_date = NULL');
+      values.push(activityRow.original_date);
+    }
+
+    values.push(id);
+
+    const query = `UPDATE activities SET ${updates.join(', ')} WHERE id = ?`;
+    await pool.query(query, values);
 
     res.json({ message: 'Activity rejected. Returned to staff for re-submission.' });
   } catch (error: any) {

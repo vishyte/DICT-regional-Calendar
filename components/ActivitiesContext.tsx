@@ -23,6 +23,7 @@ export type Activity = {
   status: "Scheduled" | "Completed" | "Submission of Documents" | "For Approval" | "Postponed" | "Cancelled";
   changeReason?: string;
   changeDate?: string;
+  requestedStatus?: string;
   createdBy?: {
     idNumber: string;
     fullName: string;

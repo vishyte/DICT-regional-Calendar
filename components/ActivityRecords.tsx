@@ -46,6 +46,7 @@ interface Activity {
   notes?: string;
   changeReason?: string;
   changeDate?: string;
+  requestedStatus?: string;
   attendanceFile?: string;
   attendanceFileName?: string;
   attendanceUploadDate?: string;
@@ -87,6 +88,7 @@ export function ActivityRecords() {
   const [approvingLoading, setApprovingLoading] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportProvince, setExportProvince] = useState<string>("all");
+  const [exportProject, setExportProject] = useState<string>("all");
 
   // Real-time status update - refresh every minute
   useEffect(() => {
@@ -605,11 +607,14 @@ export function ActivityRecords() {
     setApprovalDialogOpen(true);
   };
 
-  const handleExport = async (provinceOverride?: string) => {
+  const handleExport = async (provinceOverride?: string, projectOverride?: string) => {
     const provinceFilter = provinceOverride ?? exportProvince ?? "all";
+    const projectFilter = projectOverride ?? exportProject ?? "all";
     const normalize = (s: string) => (s || "").toLowerCase().trim();
+
     const exportList = filteredActivities.filter(a =>
-      provinceFilter === "all" || normalize(a.province).includes(normalize(provinceFilter))
+      (provinceFilter === "all" || normalize(a.province).includes(normalize(provinceFilter))) &&
+      (projectFilter === "all" || normalize(a.project).includes(normalize(projectFilter)))
     );
     const exportData = exportList.map((a) => ({
       Title: a.name,
@@ -758,9 +763,23 @@ return (
             <DialogContent className="max-w-sm">
               <DialogHeader>
                 <DialogTitle>Export Records</DialogTitle>
-                <DialogDescription>Select a province to export (or choose All)</DialogDescription>
+                <DialogDescription>Select a project and province to export (or choose All)</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
+                <div>
+                  <p className="text-sm text-gray-600">Project</p>
+                  <Select value={exportProject} onValueChange={(v) => setExportProject(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Projects</SelectItem>
+                      {projects.map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <p className="text-sm text-gray-600">Province</p>
                   <Select value={exportProvince} onValueChange={(v) => setExportProvince(v)}>
@@ -778,7 +797,7 @@ return (
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setExportDialogOpen(false)}>Cancel</Button>
-                <Button onClick={() => { handleExport(exportProvince); setExportDialogOpen(false); }}>Export</Button>
+                <Button onClick={() => { handleExport(exportProvince, exportProject); setExportDialogOpen(false); }}>Export</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

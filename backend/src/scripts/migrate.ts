@@ -38,6 +38,7 @@ async function createTables() {
         participants INTEGER,
         facilitator VARCHAR(255),
         status VARCHAR(20) DEFAULT 'Scheduled',
+        requested_status VARCHAR(50),
         change_reason TEXT,
         change_date DATE,
         created_by_id INTEGER,
@@ -103,6 +104,11 @@ async function createTables() {
         await pool.query("ALTER TABLE activities ADD COLUMN approved_at DATETIME");
         await pool.query("ALTER TABLE activities ADD COLUMN approval_notes TEXT");
         console.log('✅ Added approval columns to activities table');
+      }
+      // Add requested status column if it's missing
+      if (!cols.includes('requested_status')) {
+        await pool.query("ALTER TABLE activities ADD COLUMN requested_status VARCHAR(50)");
+        console.log('✅ Added requested_status column to activities table');
       }
       // Add document upload columns if they don't exist
       if (!cols.includes('attendance_file_name')) {

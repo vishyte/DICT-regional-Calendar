@@ -42,7 +42,7 @@ if (typeof document !== 'undefined') {
 function AppContent() {
   const { user, logout, loading } = useAuth();
   const { activities } = useActivities();
-  const [currentPage, setCurrentPage] = useState<"calendar" | "activity" | "provinces" | "records" | "documents" | "profile">("calendar");
+  const [currentPage, setCurrentPage] = useState<"calendar" | "activity" | "provinces" | "records" | "documents" | "approvals" | "profile">("calendar");
   // debug: log navigation
   useEffect(() => {
     console.log("navigated to", currentPage);
@@ -354,7 +354,7 @@ function AppContent() {
               <p className="text-xs text-gray-700 truncate mt-0.5">eGOV</p>
               <div className="mt-1">
                 <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
-                  {(user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Staff')}
+                  {(user?.role === 'admin' || user?.role === 'superadmin') ? 'Admin' : 'Staff'}
                 </span>
               </div>
             </div>
@@ -377,6 +377,15 @@ function AppContent() {
                 onClick={() => setCurrentPage("documents")}
               >
                 <FileText className="h-5 w-5" /> Documents
+              </Button>
+            </li>
+            <li>
+              <Button
+                variant="ghost"
+                className={`w-full justify-start gap-2 py-2 rounded-md transition-colors font-medium ${currentPage === "approvals" ? "bg-blue-100 text-blue-700 border-l-4 border-blue-600" : "hover:bg-gray-100"}`}
+                onClick={() => setCurrentPage("approvals")}
+              >
+                <Shield className="h-5 w-5" /> Activities Approval
               </Button>
             </li>
             <li>
@@ -464,6 +473,7 @@ function AppContent() {
         {currentPage === "provinces" && <ActivitiesPerProvince />}
         {currentPage === "records" && <ActivityRecords />}
         {currentPage === "documents" && <DocumentsPage />}
+        {currentPage === "approvals" && <DocumentsPage onlyApprovals />}
         </main>
         {/* Notifications panel - fixed on right side */}
         <div className="fixed top-24 right-6 z-20">
