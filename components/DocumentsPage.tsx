@@ -78,7 +78,7 @@ export function DocumentsPage({ onlyApprovals }: { onlyApprovals?: boolean }) {
       if (!activity.requestedStatus) return false;
 
       if (isSuperadmin) return true;
-      if (isAdmin && hasSameProject(activity)) return true;
+      if (isAdmin) return true; // Admins approve across projects
 
       // Regular users see only their project's activities (as before)
       return hasSameProject(activity);
