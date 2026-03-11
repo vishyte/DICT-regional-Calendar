@@ -40,7 +40,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
-  const [selectedAssignedPersonnel, setSelectedAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task?: string }>>([]);
+  const [selectedAssignedPersonnel, setSelectedAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task?: string; project?: string }>>([]);
   const [loadingAssignedPersonnel, setLoadingAssignedPersonnel] = useState(false);
   const [selectedHoliday, setSelectedHoliday] = useState<any | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -778,7 +778,12 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                           <div className="text-sm text-gray-600">Assigned Personnel</div>
                           <div className="text-gray-900 text-sm">
                             {selectedAssignedPersonnel
-                              .map((p) => `${p.fullName}${p.task ? ` (${p.task})` : ''}`)
+                              .map((p) => {
+                                const namePart = p.fullName.toUpperCase();
+                                const projectPart = p.project ? ` (${p.project})` : "";
+                                const taskPart = p.task ? ` (${p.task})` : "";
+                                return `${namePart}${projectPart}${taskPart}`;
+                              })
                               .join(', ')}
                           </div>
                         </div>

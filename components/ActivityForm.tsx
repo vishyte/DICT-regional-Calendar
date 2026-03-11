@@ -45,6 +45,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
   interface Personnel {
     idNumber: string;
     fullName: string;
+    project?: string;
     email?: string;
   }
 
@@ -163,6 +164,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
           .map((u: any) => ({
             idNumber: u.username || String(u.id || ''),
             fullName: `${u.first_name || ''}${u.middle_name ? ' ' + u.middle_name : ''} ${u.last_name || ''}`.trim(),
+            project: u.project || '',
             email: u.email || ''
           }))
           .filter((p: Personnel) => Boolean(p.fullName && p.idNumber));
@@ -200,6 +202,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
           first_name: p.fullName.split(" ")[0] || "",
           middle_name: p.fullName.split(" ")[1] || "",
           last_name: p.fullName.split(" ").slice(2).join(" ") || "",
+          project: p.project || "",
         }));
         localStorage.setItem('local_users', JSON.stringify(storageUsers));
       } catch {}
@@ -235,7 +238,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
       
       if (person && !isAlreadyAssigned) {
         // Add personnel and reset select in the same update cycle
-        setAssignedPersonnel(prev => [...prev, { idNumber: person.idNumber, fullName: person.fullName, task: "" }]);
+        setAssignedPersonnel(prev => [...prev, { idNumber: person.idNumber, fullName: person.fullName, project: person.project, task: "" }]);
         setSelectedPersonnelId(undefined);
       } else {
         setSelectedPersonnelId(undefined);
@@ -1000,11 +1003,11 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                 </Select>
               </div>
 
-              {/* City - Hide when "Davao City" is selected as province */}
+              {/* City / Municipality - Hide when "Davao City" is selected as province */}
               {selectedProvince !== "Davao City" && (
                 <div className="space-y-2">
                   <Label htmlFor="city">
-                    City <span className="text-red-500">*</span>
+                    City/Municipality <span className="text-red-500">*</span>
                   </Label>
                   <Select 
                     required={selectedProvince !== "Davao City"}
@@ -1102,7 +1105,8 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                     ) : (
                       unassignedPersonnel.map((person: Personnel) => (
                         <SelectItem key={person.idNumber} value={person.idNumber}>
-                          {person.fullName} ({person.idNumber})
+                          {person.fullName.toUpperCase()}
+                          {person.project ? ` (${person.project})` : null}
                         </SelectItem>
                       ))
                     )}
@@ -1114,13 +1118,15 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                 )}
                 {assignedPersonnel.length > 0 && (
                   <div className="space-y-2 mt-3">
-                    {assignedPersonnel.map((person: { idNumber: string; fullName: string; task: string }) => (
+                    {assignedPersonnel.map((person: { idNumber: string; fullName: string; task: string; project?: string }) => (
                       <div key={person.idNumber} className="flex items-start gap-2 p-3 border border-gray-200 rounded-md bg-gray-50">
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-2">
                             <div>
-                              <p className="text-sm font-medium text-gray-900">{person.fullName}</p>
-                              <p className="text-xs text-gray-500">{person.idNumber}</p>
+                              <p className="text-sm font-medium text-gray-900">{person.fullName.toUpperCase()}</p>
+                              {person.project ? (
+                                <p className="text-xs text-gray-500">{person.project}</p>
+                              ) : null}
                             </div>
                             <Button
                               type="button"
