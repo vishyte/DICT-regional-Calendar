@@ -55,6 +55,8 @@ function AppContent() {
   const [superadminUser, setSuperadminUser] = useState<{username: string} | null>(null);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState<boolean>(false);
 
+  const isAdminOrSuperadmin = user?.role === "admin" || user?.role === "superadmin";
+
   // Compute pending activities
   const pendingActivities = React.useMemo(() => {
     if (!user || !activities) return [];
@@ -379,15 +381,17 @@ function AppContent() {
                 <FileText className="h-5 w-5" /> Documents
               </Button>
             </li>
-            <li>
-              <Button
-                variant="ghost"
-                className={`w-full justify-start gap-2 py-2 rounded-md transition-colors font-medium ${currentPage === "approvals" ? "bg-blue-100 text-blue-700 border-l-4 border-blue-600" : "hover:bg-gray-100"}`}
-                onClick={() => setCurrentPage("approvals")}
-              >
-                <Shield className="h-5 w-5" /> Activities Approval
-              </Button>
-            </li>
+            {isAdminOrSuperadmin && (
+              <li>
+                <Button
+                  variant="ghost"
+                  className={`w-full justify-start gap-2 py-2 rounded-md transition-colors font-medium ${currentPage === "approvals" ? "bg-blue-100 text-blue-700 border-l-4 border-blue-600" : "hover:bg-gray-100"}`}
+                  onClick={() => setCurrentPage("approvals")}
+                >
+                  <Shield className="h-5 w-5" /> Activities Approval
+                </Button>
+              </li>
+            )}
             <li>
               <Button
                 variant="ghost"
@@ -473,7 +477,7 @@ function AppContent() {
         {currentPage === "provinces" && <ActivitiesPerProvince />}
         {currentPage === "records" && <ActivityRecords />}
         {currentPage === "documents" && <DocumentsPage />}
-        {currentPage === "approvals" && <DocumentsPage onlyApprovals />}
+        {currentPage === "approvals" && isAdminOrSuperadmin && <DocumentsPage onlyApprovals />}
         </main>
         {/* Notifications panel - fixed on right side */}
         <div className="fixed top-24 right-6 z-20">

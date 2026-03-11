@@ -343,15 +343,6 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     e.preventDefault();
     if (!startDate) return alert("Please select a start date");
 
-    // Disallow past dates
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    if (startDate < todayStart) {
-      toast.error("Start date cannot be in the past", {
-        description: "Please choose today or a future date.",
-      });
-      return;
-    }
 
     const form = e.currentTarget;
     const data = new FormData(form);
