@@ -647,103 +647,17 @@ const handleSubmitFiles = async () => {
                 <p className="text-gray-900">{selectedActivity.project}</p>
               </div>
 
-              <div>
-                <p className="text-sm text-gray-600 mb-2">Submitted Documents</p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Attendance:</span>
-                    {selectedActivity.attendanceFileName ? (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={async () => {
-                            try {
-                              const resp = await api.get(`/activities/${selectedActivity.id}/file/attendance`, { responseType: 'blob' });
-                              const blob = new Blob([resp.data]);
-                              const url = URL.createObjectURL(blob);
-                              window.open(url, '_blank');
-                              setTimeout(() => URL.revokeObjectURL(url), 60000);
-                            } catch (err) {
-                              console.error('Failed to fetch attendance file', err);
-                            }
-                          }}
-                          className="text-blue-600 hover:underline"
-                        >
-                          View
-                        </button>
-                        <button
-                          onClick={async () => {
-                            try {
-                              const resp = await api.get(`/activities/${selectedActivity.id}/file/attendance`, { responseType: 'blob' });
-                              const blob = new Blob([resp.data]);
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = selectedActivity.attendanceFileName || 'attendance';
-                              document.body.appendChild(a);
-                              a.click();
-                              a.remove();
-                              setTimeout(() => URL.revokeObjectURL(url), 60000);
-                            } catch (err) {
-                              console.error('Failed to download attendance file', err);
-                            }
-                          }}
-                          className="text-gray-500 hover:text-gray-700 text-xs"
-                          title="Download"
-                        >
-                          ↓
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">Not submitted</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">TODA:</span>
-                    {selectedActivity.todaFileName ? (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={async () => {
-                            try {
-                              const resp = await api.get(`/activities/${selectedActivity.id}/file/toda`, { responseType: 'blob' });
-                              const blob = new Blob([resp.data]);
-                              const url = URL.createObjectURL(blob);
-                              window.open(url, '_blank');
-                              setTimeout(() => URL.revokeObjectURL(url), 60000);
-                            } catch (err) {
-                              console.error('Failed to fetch TODA file', err);
-                            }
-                          }}
-                          className="text-blue-600 hover:underline"
-                        >
-                          View
-                        </button>
-                        <button
-                          onClick={async () => {
-                            try {
-                              const resp = await api.get(`/activities/${selectedActivity.id}/file/toda`, { responseType: 'blob' });
-                              const blob = new Blob([resp.data]);
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = selectedActivity.todaFileName || 'toda';
-                              document.body.appendChild(a);
-                              a.click();
-                              a.remove();
-                              setTimeout(() => URL.revokeObjectURL(url), 60000);
-                            } catch (err) {
-                              console.error('Failed to download TODA file', err);
-                            }
-                          }}
-                          className="text-gray-500 hover:text-gray-700 text-xs"
-                          title="Download"
-                        >
-                          ↓
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">Not submitted</span>
-                    )}
-                  </div>
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600 mb-2">Request Details</p>
+                <div className="text-sm">
+                  <p>
+                    <span className="font-medium">Requested change:</span> {selectedActivity.requestedStatus || "—"}
+                  </p>
+                  {selectedActivity.changeReason && (
+                    <p className="mt-1">
+                      <span className="font-medium">Reason:</span> {selectedActivity.changeReason}
+                    </p>
+                  )}
                 </div>
               </div>
 
