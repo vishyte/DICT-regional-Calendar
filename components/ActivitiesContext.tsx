@@ -35,7 +35,7 @@ export type Activity = {
     fullName: string;
     task: string;
   }>;
-  priority?: "Normal" | "Urgent";
+  priority?: "Major Event" | "Minor Event" | "Core Task" | "Tech Assistance";
   partnerInstitution?: string;
   documents?: Array<{
     id: number;
@@ -72,6 +72,18 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
 
+  const normalizePriority = (priority?: string): Activity['priority'] | undefined => {
+    if (!priority) return undefined;
+    const normalized = priority.trim();
+    if (normalized === "Normal") return "Core Task";
+    if (normalized === "Urgent") return "Major Event";
+    // Keep existing valid values
+    if (["Major Event", "Minor Event", "Core Task", "Tech Assistance"].includes(normalized)) {
+      return normalized as Activity['priority'];
+    }
+    return undefined;
+  };
+
   // Get local activities from localStorage
   const getLocalActivities = (): Activity[] => {
     try {
@@ -93,13 +105,17 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
       const response = await activitiesAPI.getAll();
       const activitiesList: Activity[] = response.data;
 
-      // Group by date
+      // Normalize legacy priorities and group by date
       const grouped: DayActivities = {};
       activitiesList.forEach(activity => {
-        if (!grouped[activity.date]) {
-          grouped[activity.date] = [];
+        const normalized = {
+          ...activity,
+          priority: normalizePriority(activity.priority as any),
+        };
+        if (!grouped[normalized.date]) {
+          grouped[normalized.date] = [];
         }
-        grouped[activity.date].push(activity);
+        grouped[normalized.date].push(normalized);
       });
 
       setActivities(grouped);
@@ -109,10 +125,14 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
       const localActivities = getLocalActivities();
       const grouped: DayActivities = {};
       localActivities.forEach(activity => {
-        if (!grouped[activity.date]) {
-          grouped[activity.date] = [];
+        const normalized = {
+          ...activity,
+          priority: normalizePriority(activity.priority as any),
+        };
+        if (!grouped[normalized.date]) {
+          grouped[normalized.date] = [];
         }
-        grouped[activity.date].push(activity);
+        grouped[normalized.date].push(normalized);
       });
       setActivities(grouped);
     } finally {

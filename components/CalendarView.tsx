@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { useActivities, type Activity as CtxActivity, type DayActivities } from "./ActivitiesContext";
-import { activitiesAPI } from "../utils/api";
+import { activitiesAPI, usersAPI } from "../utils/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -12,7 +12,7 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Alert, AlertDescription } from "./ui/alert";
-import { ChevronLeft, ChevronRight, Calendar, CalendarPlus, MapPin, FileText, Clock, Users, Edit, Eye, UserCheck, AlertCircle, CheckCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, CalendarPlus, MapPin, FileText, Clock, Users, Edit, Eye, UserCheck, AlertCircle, CheckCircle, X } from "lucide-react";
 import { Gift } from "lucide-react";
 import { toast } from "sonner";
 import { formatTimeDisplay } from "./utils/timeFormat";
@@ -29,6 +29,12 @@ interface CalendarViewProps {
 // since the API does not include a province field, we compute it when needed
 type Activity = CtxActivity & {
   province?: string;
+  assignedPersonnel?: Array<{
+    idNumber: string;
+    fullName: string;
+    task: string;
+    project?: string;
+  }>;
 };
 
 export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNavigateToRecords }: CalendarViewProps) {
@@ -42,6 +48,16 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [selectedAssignedPersonnel, setSelectedAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task?: string; project?: string }>>([]);
   const [loadingAssignedPersonnel, setLoadingAssignedPersonnel] = useState(false);
+
+  type Personnel = {
+    idNumber: string;
+    fullName: string;
+    project?: string;
+    email?: string;
+  };
+  const [allPersonnel, setAllPersonnel] = useState<Personnel[]>([]);
+  const [selectedPersonnelToAdd, setSelectedPersonnelToAdd] = useState<string | undefined>(undefined);
+
   const [selectedHoliday, setSelectedHoliday] = useState<any | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -53,7 +69,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   const [editVenue, setEditVenue] = useState("");
   const [editPartnerInstitution, setEditPartnerInstitution] = useState("");
   const [editFinalPax, setEditFinalPax] = useState<string>("");
-  const [editAssignedPersonnel, setEditAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task: string }>>([]);
+  const [editAssignedPersonnel, setEditAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task: string; project?: string }>>([]);
   // activities come from context now
 
   // Live clock
@@ -63,6 +79,47 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Load personnel list so we can add/remove assignments during edit
+  useEffect(() => {
+    const updateLocalPersonnelFromStorage = () => {
+      try {
+        const usersJson = localStorage.getItem('local_users');
+        if (!usersJson) return;
+        const users = JSON.parse(usersJson);
+        const personnel = (users || []).map((u: any) => ({
+          idNumber: u.username || String(u.id || ''),
+          fullName: u.fullName || `${u.first_name || ''}${u.middle_name ? ' ' + u.middle_name : ''} ${u.last_name || ''}`.trim(),
+          project: u.project || '',
+          email: u.email || '',
+        }));
+        setAllPersonnel(personnel);
+      } catch (e) {
+        console.warn('Failed to parse local personnel', e);
+      }
+    };
+
+    updateLocalPersonnelFromStorage();
+
+    // Fetch backend users on mount and merge with local store
+    usersAPI.getAll().then((res) => {
+      const backendUsers = (res.data || []).map((u: any) => ({
+        idNumber: u.idNumber || u.username || String(u.id || ''),
+        fullName: u.fullName || `${u.first_name || ''}${u.middle_name ? ' ' + u.middle_name : ''} ${u.last_name || ''}`.trim(),
+        project: u.project || '',
+        email: u.email || '',
+      }));
+
+      const all = [...backendUsers];
+      const unique: Record<string, Personnel> = {};
+      all.forEach((p) => {
+        if (p.idNumber) unique[p.idNumber] = p;
+      });
+      setAllPersonnel(Object.values(unique));
+    }).catch((err) => {
+      console.warn('Failed to load users for personnel list', err);
+    });
   }, []);
 
   // Real-time status update - refresh every minute
@@ -89,6 +146,51 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     const lower = loc.toLowerCase();
     const matched = FIXED_PROVINCES.find(p => lower.includes(p.toLowerCase()));
     return matched || loc;
+  };
+
+  const getPriorityClasses = (priority?: Activity['priority']) => {
+    switch (priority) {
+      case "Major Event":
+        return {
+          today: "hover:bg-red-50 hover:text-red-900 text-red-700",
+          card: "bg-red-50 border-red-300 hover:bg-red-100 hover:border-red-400",
+          title: "font-bold text-red-700",
+          icon: "text-red-600",
+          badge: "bg-red-600 text-white",
+        };
+      case "Minor Event":
+        return {
+          today: "hover:bg-yellow-50 hover:text-yellow-900 text-yellow-700",
+          card: "bg-yellow-50 border-yellow-300 hover:bg-yellow-100 hover:border-yellow-400",
+          title: "font-semibold text-yellow-700",
+          icon: "text-yellow-600",
+          badge: "bg-yellow-500 text-white",
+        };
+      case "Core Task":
+        return {
+          today: "hover:bg-blue-50 hover:text-blue-900 text-blue-900",
+          card: "bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300",
+          title: "font-semibold text-blue-700",
+          icon: "text-blue-600",
+          badge: "bg-blue-600 text-white",
+        };
+      case "Tech Assistance":
+        return {
+          today: "hover:bg-green-50 hover:text-green-900 text-green-700",
+          card: "bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300",
+          title: "font-semibold text-green-700",
+          icon: "text-green-600",
+          badge: "bg-green-600 text-white",
+        };
+      default:
+        return {
+          today: "hover:text-blue-900 text-blue-900",
+          card: "",
+          title: "",
+          icon: "text-blue-600",
+          badge: "bg-blue-600 text-white",
+        };
+    }
   };
 
   const monthNames = [
@@ -145,7 +247,18 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     setEditVenue(activity.venue || "");
     setEditPartnerInstitution(activity.partnerInstitution || "");
     setEditFinalPax(activity.participants?.toString() || "");
-    setEditAssignedPersonnel(activity.assignedPersonnel || []);
+    // Ensure assigned personnel include project info when available
+    const resolvedAssigned = ((activity.assignedPersonnel || []) as Array<{ idNumber: string; fullName: string; task: string; project?: string }>).
+      map((p) => {
+        const found = allPersonnel.find((u) => u.idNumber === p.idNumber);
+        return {
+          ...p,
+          project: found?.project || p.project,
+        };
+      });
+
+    setEditAssignedPersonnel(resolvedAssigned);
+    setSelectedPersonnelToAdd(undefined);
     setViewDialogOpen(false);
     setEditDialogOpen(true);
   };
@@ -156,6 +269,28 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
     setEditAssignedPersonnel(prev => prev.map(p => 
       p.idNumber === idNumber ? { ...p, task } : p
     ));
+  };
+
+  const unassignedPersonnel = useMemo(() => {
+    return allPersonnel
+      .filter(p => p.idNumber !== user?.idNumber)
+      .filter(p => !editAssignedPersonnel.some(ep => ep.idNumber === p.idNumber));
+  }, [allPersonnel, user?.idNumber, editAssignedPersonnel]);
+
+  const handleAddPersonnel = (idNumber?: string) => {
+    if (!idNumber) return;
+    const person = allPersonnel.find(p => p.idNumber === idNumber);
+    if (!person) return;
+
+    setEditAssignedPersonnel(prev => {
+      if (prev.some(p => p.idNumber === idNumber)) return prev;
+      return [...prev, { idNumber: person.idNumber, fullName: person.fullName, project: person.project, task: "" }];
+    });
+    setSelectedPersonnelToAdd(undefined);
+  };
+
+  const handleRemovePersonnel = (idNumber: string) => {
+    setEditAssignedPersonnel(prev => prev.filter(p => p.idNumber !== idNumber));
   };
 
   const handleSaveChanges = async () => {
@@ -387,9 +522,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                         <button
                           key={a.id}
                           type="button"
-                          className={`mr-3 inline-flex flex-col items-start rounded-md hover:bg-blue-50 px-2 py-1 transition-colors text-left align-top ${
-                            a.priority === "Urgent" ? "hover:bg-red-50 hover:text-red-900 text-red-700" : "hover:text-blue-900 text-blue-900"
-                          }`}
+                          className={`mr-3 inline-flex flex-col items-start rounded-md hover:bg-blue-50 px-2 py-1 transition-colors text-left align-top ${getPriorityClasses(a.priority).today}`}
                           onClick={() => {
                             setSelectedActivity(a);
                             setViewDialogOpen(true);
@@ -541,24 +674,24 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                         .finally(() => setLoadingAssignedPersonnel(false));
                     }}
                     className={`p-4 rounded-lg space-y-2 cursor-pointer transition-all border 
-                      ${activity.priority === "Urgent" ? "bg-red-50 border-red-300 hover:bg-red-100 hover:border-red-400" : ""}
-                      ${activity.priority !== "Urgent" && displayStatus === "Completed" ? "bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300" : ""}
-                      ${activity.priority !== "Urgent" && displayStatus === "Submission of Documents" ? "bg-yellow-50 border-yellow-200 hover:bg-yellow-100 hover:border-yellow-300" : ""}
-                      ${activity.priority !== "Urgent" && displayStatus === "Scheduled" ? "bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300" : ""}
-                      ${activity.priority !== "Urgent" && displayStatus === "Postponed" ? "bg-orange-50 border-orange-200 hover:bg-orange-100 hover:border-orange-300" : ""}
-                      ${activity.priority !== "Urgent" && displayStatus === "Cancelled" ? "bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300" : ""}
+                      ${getPriorityClasses(activity.priority).card}
+                      ${activity.priority !== "Major Event" && displayStatus === "Completed" ? "bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300" : ""}
+                      ${activity.priority !== "Major Event" && displayStatus === "Submission of Documents" ? "bg-yellow-50 border-yellow-200 hover:bg-yellow-100 hover:border-yellow-300" : ""}
+                      ${activity.priority !== "Major Event" && displayStatus === "Scheduled" ? "bg-blue-50 border-blue-200 hover:bg-blue-100 hover:border-blue-300" : ""}
+                      ${activity.priority !== "Major Event" && displayStatus === "Postponed" ? "bg-orange-50 border-orange-200 hover:bg-orange-100 hover:border-orange-300" : ""}
+                      ${activity.priority !== "Major Event" && displayStatus === "Cancelled" ? "bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300" : ""}
                     `}
                   >
                     <div className="flex items-start justify-between">
-                      <div className={`text-gray-900 ${activity.priority === "Urgent" ? "font-bold text-red-700" : ""}`}>
+                      <div className={`text-gray-900 ${getPriorityClasses(activity.priority).title}`}>
                         {activity.name}
-                        {activity.priority === "Urgent" && (
-                          <span className="ml-2 inline-block px-2 py-0.5 bg-red-200 text-red-800 text-xs font-semibold rounded">
-                            URGENT
+                        {activity.priority && (
+                          <span className={`ml-2 inline-block px-2 py-0.5 ${getPriorityClasses(activity.priority).badge} text-xs font-semibold rounded`}>
+                            {activity.priority}
                           </span>
                         )}
                       </div>
-                      <Eye className={`h-4 w-4 ${activity.priority === "Urgent" ? "text-red-600" : "text-blue-600"}`} />
+                      <Eye className={`h-4 w-4 ${getPriorityClasses(activity.priority).icon}`} />
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Calendar className="h-4 w-4" />
@@ -599,8 +732,8 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     )}
                     <div className="flex gap-2">
                       <Badge variant="secondary">{activity.sector}</Badge>
-                      {activity.priority === "Urgent" && (
-                        <Badge className="bg-red-600 text-white">Urgent</Badge>
+                      {activity.priority && (
+                        <Badge className={getPriorityClasses(activity.priority).badge}>{activity.priority}</Badge>
                       )}
                       <Badge className="bg-blue-600 w-[90px] overflow-hidden whitespace-nowrap" title={activity.project}>
                         <span className={`inline-block ${activity.project.length > 12 ? 'animate-marquee' : ''}`}>
@@ -679,9 +812,9 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                   >
                     {displaySelectedStatus}
                   </Badge>
-                  {selectedActivity.priority === "Urgent" && (
-                    <Badge className="bg-red-600 text-white">
-                      ⚠️ URGENT PRIORITY
+                  {selectedActivity.priority && (
+                    <Badge className={getPriorityClasses(selectedActivity.priority).badge}>
+                      {selectedActivity.priority}
                     </Badge>
                   )}
                 </div>
@@ -753,6 +886,32 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                         </div>
                       </div>
                     </div>
+
+                    {(() => {
+                      const parse = (t: string) => {
+                        const m = t.match(/^(\d{1,2}):(\d{2})$/);
+                        if (!m) return null;
+                        return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+                      };
+                      const startMin = parse(selectedActivity.time);
+                      const endMin = parse(selectedActivity.endTime);
+                      if (startMin != null && endMin != null && endMin > startMin) {
+                        const diff = endMin - startMin;
+                        const hrs = Math.floor(diff / 60);
+                        const mins = diff % 60;
+                        const duration = `${hrs > 0 ? `${hrs} hr${hrs > 1 ? 's' : ''}` : ''}${hrs > 0 && mins > 0 ? ' ' : ''}${mins > 0 ? `${mins} min` : ''}`.trim();
+                        return (
+                          <div className="flex items-start gap-2">
+                            <Clock className="h-5 w-5 text-blue-600 mt-0.5" />
+                            <div>
+                              <div className="text-sm text-gray-600">Duration</div>
+                              <div className="text-gray-900">{duration}</div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
 
                     <div className="flex items-start gap-2">
                       <MapPin className="h-5 w-5 text-blue-600 mt-0.5" />
@@ -975,16 +1134,60 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                 />
               </div>
 
-              {/* Assigned Personnel Tasks */}
-              {editAssignedPersonnel.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Assigned Personnel Tasks</Label>
+              {/* Assigned Personnel */}
+              <div className="space-y-2">
+                <Label>Assigned Personnel</Label>
+
+                <div className="flex gap-2 flex-wrap items-center">
+                  <Select
+                    value={selectedPersonnelToAdd}
+                    onValueChange={setSelectedPersonnelToAdd}
+                  >
+                    <SelectTrigger className="w-full md:w-72">
+                      <SelectValue placeholder={unassignedPersonnel.length > 0 ? "Select personnel to assign" : "No available personnel"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unassignedPersonnel.length === 0 ? (
+                        <SelectItem value="__none__" disabled>
+                          No personnel available
+                        </SelectItem>
+                      ) : (
+                        unassignedPersonnel.map((person) => (
+                          <SelectItem key={person.idNumber} value={person.idNumber}>
+                            {person.fullName.toUpperCase()} {person.project ? `(${person.project})` : ""}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    size="sm"
+                    disabled={!selectedPersonnelToAdd || selectedPersonnelToAdd === "__none__"}
+                    onClick={() => handleAddPersonnel(selectedPersonnelToAdd)}
+                  >
+                    Add
+                  </Button>
+                </div>
+
+                {editAssignedPersonnel.length > 0 ? (
                   <div className="space-y-2">
                     {editAssignedPersonnel.map((person) => (
                       <div key={person.idNumber} className="p-3 border border-gray-200 rounded-md bg-gray-50">
-                        <div className="mb-2">
-                          <p className="text-sm font-medium text-gray-900">{person.fullName}</p>
-                          <p className="text-xs text-gray-500">{person.idNumber}</p>
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{person.fullName}</p>
+                            <p className="text-xs text-gray-500">{person.idNumber}</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemovePersonnel(person.idNumber)}
+                            className="text-gray-400 hover:text-red-500"
+                            aria-label={`Remove ${person.fullName}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
                         </div>
                         <Input
                           placeholder="Enter task/role for this personnel"
@@ -995,10 +1198,10 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-
-
+                ) : (
+                  <p className="text-sm text-gray-500">No personnel currently assigned.</p>
+                )}
+              </div>
 
               {/* Status Change Section */}
               <Separator />

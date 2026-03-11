@@ -27,7 +27,7 @@ interface Activity {
   participants?: number;
   facilitator?: string;
   status: DisplayStatus;
-  priority?: "Normal" | "Urgent";
+  priority?: "Major Event" | "Minor Event" | "Core Task" | "Tech Assistance";
   partnerInstitution?: string;
   mode?: string;
   platform?: string;
@@ -151,15 +151,40 @@ export function ActivitiesPerProvince() {
     return matchesSearch && matchesProvince && matchesProject && matchesStatus && matchesPriority;
   });
 
-  // Group activities by province and sort by priority (urgent first)
+  const getPriorityRank = (priority?: Activity['priority']) => {
+    switch (priority) {
+      case "Major Event":
+        return 0;
+      case "Minor Event":
+        return 1;
+      case "Core Task":
+        return 2;
+      case "Tech Assistance":
+        return 3;
+      default:
+        return 4;
+    }
+  };
+
+  const getPriorityBadgeClass = (priority?: Activity['priority']) => {
+    switch (priority) {
+      case "Major Event":
+        return "border-red-500 text-red-700";
+      case "Minor Event":
+        return "border-yellow-500 text-yellow-700";
+      case "Core Task":
+        return "border-blue-500 text-blue-700";
+      case "Tech Assistance":
+        return "border-green-500 text-green-700";
+      default:
+        return "border-gray-300 text-gray-700";
+    }
+  };
+
+  // Group activities by province and sort by priority (Major Event first)
   const activitiesByProvince = provinces.reduce((acc, province) => {
     const provinceActivities = filteredActivities.filter(activity => activity.province === province);
-    // Sort so urgent activities appear first
-    provinceActivities.sort((a, b) => {
-      if (a.priority === "Urgent" && b.priority !== "Urgent") return -1;
-      if (a.priority !== "Urgent" && b.priority === "Urgent") return 1;
-      return 0;
-    });
+    provinceActivities.sort((a, b) => getPriorityRank(a.priority) - getPriorityRank(b.priority));
     acc[province] = provinceActivities;
     return acc;
   }, {} as Record<string, Activity[]>);
@@ -297,8 +322,10 @@ export function ActivitiesPerProvince() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Priorities</SelectItem>
-                  <SelectItem value="Normal">Normal</SelectItem>
-                  <SelectItem value="Urgent">Urgent</SelectItem>
+                  <SelectItem value="Major Event">Major Event</SelectItem>
+                  <SelectItem value="Minor Event">Minor Event</SelectItem>
+                  <SelectItem value="Core Task">Core Task</SelectItem>
+                  <SelectItem value="Tech Assistance">Tech Assistance</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -356,7 +383,7 @@ export function ActivitiesPerProvince() {
                         );
                       })()}
                       {activity.priority && (
-                        <Badge variant="outline" className={activity.priority === "Urgent" ? "border-red-500 text-red-700" : "border-blue-500 text-blue-700"}>
+                        <Badge variant="outline" className={getPriorityBadgeClass(activity.priority)}>
                           {activity.priority}
                         </Badge>
                       )}
@@ -436,7 +463,7 @@ export function ActivitiesPerProvince() {
                                 );
                               })()}
                               {activity.priority && (
-                                <Badge variant="outline" className={activity.priority === "Urgent" ? "border-red-500 text-red-700" : "border-blue-500 text-blue-700"}>
+                                <Badge variant="outline" className={getPriorityBadgeClass(activity.priority)}>
                                   {activity.priority}
                                 </Badge>
                               )}

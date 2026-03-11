@@ -32,7 +32,30 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
   const [computedDuration, setComputedDuration] = useState<string>("");
   const [expectedParticipants, setExpectedParticipants] = useState<string>("");
   const [assignedPersonnel, setAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task: string }>>([]);
-  const [priority, setPriority] = useState<"Normal" | "Urgent">("Normal");
+  const [priority, setPriority] = useState<"Major Event" | "Minor Event" | "Core Task" | "Tech Assistance">("Core Task");
+
+  const priorityDescriptions: Record<string, { emoji: string; title: string; description: string }> = {
+    "Major Event": {
+      emoji: "🔴",
+      title: "MAJOR EVENT",
+      description: "Regional/National Events that need multiple projects or cross-functions.",
+    },
+    "Minor Event": {
+      emoji: "🟡",
+      title: "MINOR EVENT",
+      description: "Provincial events or Project events that need full force of its members.",
+    },
+    "Core Task": {
+      emoji: "🔵",
+      title: "CORE TASK",
+      description: "Usual targets of province or projects (reports, deadlines, meetings).",
+    },
+    "Tech Assistance": {
+      emoji: "🟢",
+      title: "TECH ASSISTANCE",
+      description: "External event support requests (advisory, booth, logistics).",
+    },
+  };
   const [selectedPersonnelId, setSelectedPersonnelId] = useState<string | undefined>(undefined);
   const [selectedProvince, setSelectedProvince] = useState<string>("");
   const [selectedCity, setSelectedCity] = useState<string>("");
@@ -1046,20 +1069,21 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                 </div>
               )}
 
-              {/* Congressional District - hide when Davao City */}
-              {selectedProvince !== "Davao City" && (
+              {/* Congressional District */}
+              {selectedProvince && (
                 <div className="space-y-2">
                   <Label htmlFor="district">
                     Congressional District <span className="text-red-500">*</span>
                   </Label>
-                  <Select required name="district">
+                  <Select required disabled={!selectedProvince} name="district">
                     <SelectTrigger>
-                      <SelectValue placeholder="Select district" />
+                      <SelectValue placeholder={selectedProvince ? "Select district" : "Select province first"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1st">1st District</SelectItem>
                       <SelectItem value="2nd">2nd District</SelectItem>
                       <SelectItem value="3rd">3rd District</SelectItem>
+                      <SelectItem value="lone">Lone District</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1154,29 +1178,46 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
               {/* Priority */}
               <div className="space-y-2">
                 <Label htmlFor="priority">Priority</Label>
-                <Select value={priority} onValueChange={(value: "Normal" | "Urgent") => setPriority(value)}>
+                <Select value={priority} onValueChange={(value: "Major Event" | "Minor Event" | "Core Task" | "Tech Assistance") => setPriority(value)}>
                   <SelectTrigger id="priority">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Normal">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                        Normal
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="Urgent">
+                    <SelectItem value="Major Event">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                        Urgent
+                        Major Event
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="Minor Event">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                        Minor Event
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="Core Task">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        Core Task
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="Tech Assistance">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        Tech Assistance
                       </div>
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                {priority === "Urgent" && (
-                  <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-md">
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                    <p className="text-xs text-red-800">This activity is marked as urgent</p>
+                {priority && (
+                  <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 p-3">
+                    <div className="flex items-start gap-2">
+                      <span className="text-lg">{priorityDescriptions[priority].emoji}</span>
+                      <div>
+                        <div className="text-sm font-semibold">{priorityDescriptions[priority].title}</div>
+                        <div className="text-xs text-gray-600">{priorityDescriptions[priority].description}</div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

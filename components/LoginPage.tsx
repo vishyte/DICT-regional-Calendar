@@ -25,6 +25,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [project, setProject] = useState("");
+  const [officeAssignment, setOfficeAssignment] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
@@ -80,7 +81,7 @@ export function LoginPage() {
     }
     
     // Basic validation before sending code
-    if (!username || !firstName || !lastName || !email || !password || !confirmPassword || !project) {
+    if (!username || !firstName || !lastName || !email || !password || !confirmPassword || !project || !officeAssignment) {
       setError("All required fields are required");
       return;
     }
@@ -106,7 +107,7 @@ export function LoginPage() {
     
     // Store code temporarily (in sessionStorage for security)
     sessionStorage.setItem(`verification_code_${email}`, code);
-    sessionStorage.setItem(`verification_data_${email}`, JSON.stringify({ username, firstName, middleName, lastName, email, password, project }));
+    sessionStorage.setItem(`verification_data_${email}`, JSON.stringify({ username, firstName, middleName, lastName, email, password, project, officeAssignment }));
     
     const result = await sendVerificationCodeEmail(email, code, username);
     
@@ -165,7 +166,7 @@ export function LoginPage() {
     
     setTimeout(async () => {
       try {
-        const result = await register(data.username, data.email, data.password, data.password, data.firstName, data.middleName, data.lastName, data.project);
+        const result = await register(data.username, data.email, data.password, data.password, data.firstName, data.middleName, data.lastName, data.project, data.officeAssignment);
         
         // Clean up session storage
         sessionStorage.removeItem(`verification_code_${email}`);
@@ -188,7 +189,8 @@ export function LoginPage() {
           setPassword("");
           setConfirmPassword("");
           setEmail("");
-        setProject("");
+          setProject("");
+          setOfficeAssignment("");
         setEnteredCode("");
         setVerificationCode("");
         setCooldownTimer(0);
@@ -220,6 +222,7 @@ export function LoginPage() {
     setPassword("");
     setConfirmPassword("");
     setProject("");
+    setOfficeAssignment("");
     setShowPassword(false);
     setShowConfirmPassword(false);
     setVerificationStep('form');
@@ -347,28 +350,47 @@ export function LoginPage() {
               )}
 
               {isRegistering && (
-                <div className="space-y-2">
-                  <Label htmlFor="project">Project/Program <span className="text-red-500">*</span></Label>
-                  <Select value={project} onValueChange={setProject} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select your project/program" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="IIDB">IIDB</SelectItem>
-                      <SelectItem value="ILCDB">ILCDB</SelectItem>
-                      <SelectItem value="Free Wi-Fi">Free Wi-Fi</SelectItem>
-                      <SelectItem value="NBP">NBP</SelectItem>
-                      <SelectItem value="NGP">NGP</SelectItem>
-                      <SelectItem value="eGOVSD">eGOVSD</SelectItem>
-                      <SelectItem value="IMB-DRRMD">IMB-DRRMD</SelectItem>
-                      <SelectItem value="NIPPSB">NIPPSB</SelectItem>
-                      <SelectItem value="PNPKI">PNPKI</SelectItem>
-                      <SelectItem value="MISS">MISS</SelectItem>
-                      <SelectItem value="Cybersecurity">Cybersecurity</SelectItem>
-                      <SelectItem value="Admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="project">Project/Program <span className="text-red-500">*</span></Label>
+                    <Select value={project} onValueChange={setProject} required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your project/program" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="IIDB">IIDB</SelectItem>
+                        <SelectItem value="ILCDB">ILCDB</SelectItem>
+                        <SelectItem value="Free Wi-Fi">Free Wi-Fi</SelectItem>
+                        <SelectItem value="NBP">NBP</SelectItem>
+                        <SelectItem value="NGP">NGP</SelectItem>
+                        <SelectItem value="eGOVSD">eGOVSD</SelectItem>
+                        <SelectItem value="IMB-DRRMD">IMB-DRRMD</SelectItem>
+                        <SelectItem value="NIPPSB">NIPPSB</SelectItem>
+                        <SelectItem value="PNPKI">PNPKI</SelectItem>
+                        <SelectItem value="MISS">MISS</SelectItem>
+                        <SelectItem value="Cybersecurity">Cybersecurity</SelectItem>
+                        <SelectItem value="Admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="officeAssignment">Office Assignment <span className="text-red-500">*</span></Label>
+                    <Select value={officeAssignment} onValueChange={setOfficeAssignment} required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your office assignment" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Regional Office">Regional Office</SelectItem>
+                        <SelectItem value="Davao de Oro Provincial Office">Davao de Oro Provincial Office</SelectItem>
+                        <SelectItem value="Davao del Sur Provincial Office">Davao del Sur Provincial Office</SelectItem>
+                        <SelectItem value="Davao del Norte Provincial Office">Davao del Norte Provincial Office</SelectItem>
+                        <SelectItem value="Davao Occidental Provincial Office">Davao Occidental Provincial Office</SelectItem>
+                        <SelectItem value="Davao Oriental Provincial Office">Davao Oriental Provincial Office</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
 
               <div className="space-y-2">

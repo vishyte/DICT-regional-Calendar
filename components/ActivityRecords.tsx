@@ -18,6 +18,87 @@ import { deriveDisplayStatus } from "./utils/status";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Toaster, toast } from "sonner";
 
+function calculateDuration(start?: string, end?: string): string {
+  if (!start || !end) return "";
+
+  const parse = (t: string) => {
+    const m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const h = parseInt(m[1], 10);
+    const min = parseInt(m[2], 10);
+    return h * 60 + min;
+  };
+
+  const startMin = parse(start);
+  const endMin = parse(end);
+  if (startMin === null || endMin === null) return "";
+
+  let diff = endMin - startMin;
+  if (diff < 0) diff += 24 * 60;
+
+  const hours = Math.floor(diff / 60);
+  const minutes = diff % 60;
+
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
+  if (minutes > 0) parts.push(`${minutes} minute${minutes === 1 ? "" : "s"}`);
+
+  return parts.join(" ") || "0 minutes";
+}
+
+function parseActivityId(id: string): number | null {
+  if (!id) return null;
+  const numericId = id.startsWith("cal-") ? id.replace(/^cal-/, "") : id;
+  const parsed = parseInt(numericId, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function getPriorityStyles(priority?: Activity['priority']) {
+  switch (priority) {
+    case "Major Event":
+      return {
+        row: "bg-red-50",
+        text: "font-bold text-red-700",
+        badge: "bg-red-600 text-white",
+        label: "Major Event",
+      };
+    case "Minor Event":
+      return {
+        row: "bg-yellow-50",
+        text: "font-semibold text-yellow-800",
+        badge: "bg-yellow-500 text-white",
+        label: "Minor Event",
+      };
+    case "Core Task":
+      return {
+        row: "bg-blue-50",
+        text: "font-semibold text-blue-700",
+        badge: "bg-blue-600 text-white",
+        label: "Core Task",
+      };
+    case "Tech Assistance":
+      return {
+        row: "bg-green-50",
+        text: "font-semibold text-green-700",
+        badge: "bg-green-600 text-white",
+        label: "Tech Assistance",
+      };
+    default:
+      return {
+        row: "",
+        text: "",
+        badge: "",
+        label: priority || "",
+      };
+  }
+}
+
+interface AssignedPersonnel {
+  idNumber: string;
+  fullName: string;
+  task?: string;
+  project?: string;
+}
 
 interface Activity {
   id: string;
@@ -39,7 +120,7 @@ interface Activity {
   resourcePerson: string;
   mode: string;
   status: "Scheduled" | "Completed" | "Submission of Documents" | "Postponed" | "Cancelled" | "Upcoming" | "Ongoing" | "For Approval";
-  priority?: "Normal" | "Urgent";
+  priority?: "Major Event" | "Minor Event" | "Core Task" | "Tech Assistance";
   participants: number;
   male?: number;
   female?: number;
@@ -59,6 +140,7 @@ interface Activity {
     fullName: string;
     email: string;
   };
+  assignedPersonnel?: AssignedPersonnel[];
 }
 
 export function ActivityRecords() {
@@ -79,6 +161,9 @@ export function ActivityRecords() {
   const [todaFile, setTodaFile] = useState<File | null>(null);
   const [todaFileName, setTodaFileName] = useState<string>("");
   const [, setRefreshCounter] = useState(0);
+
+  const [viewAssignedPersonnel, setViewAssignedPersonnel] = useState<AssignedPersonnel[]>([]);
+  const [viewLoadingAssignedPersonnel, setViewLoadingAssignedPersonnel] = useState(false);
   
   // Approval dialog state
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
@@ -468,7 +553,7 @@ export function ActivityRecords() {
           endDate: (a as any).endDate,
           timeStart: a.time,
           timeEnd: a.endTime,
-          duration: "",
+          duration: calculateDuration(a.time, a.endTime),
           targetSector: [a.sector].filter(Boolean),
           province: a.location,
           district: "",
@@ -1019,124 +1104,296 @@ return (
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedActivities.map((activity) => (
-                  <TableRow key={activity.id} className={`hover:bg-gray-50 ${activity.priority === "Urgent" ? "bg-red-50" : ""}`}>
-                    <TableCell>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className={`text-gray-900 ${activity.priority === "Urgent" ? "font-bold text-red-700" : ""}`}>
-                            {activity.name}
-                            {activity.priority === "Urgent" && (
-                              <span className="ml-2 inline-block px-2 py-0.5 bg-red-200 text-red-800 text-xs font-semibold rounded">
-                                URGENT
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                        <p className="text-sm text-gray-500">{formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-gray-600">{activity.project}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-gray-400" />
+                {sortedActivities.map((activity) => {
+                  const priorityStyles = getPriorityStyles(activity.priority);
+                  return (
+                    <TableRow key={activity.id} className={`hover:bg-gray-50 ${priorityStyles.row}`}>
+                      <TableCell>
                         <div>
-                          <span className="text-sm">
-                            {new Date(activity.date).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric"
-                            })}
-                          </span>
-                          {activity.originalDate && (
-                            <p className="text-xs text-gray-500">
-                              Moved from {new Date(activity.originalDate).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric"
-                              })}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="text-sm text-gray-900">{activity.province}</p>
-                        <p className="text-xs text-gray-500">{activity.barangay}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm">{activity.participants}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {activity.createdBy ? (
-                        <div className="text-xs text-gray-700">
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-900">{activity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase())}</span>
-                            {activity.status === "Submission of Documents" && activity.date <= new Date().toISOString().slice(0, 10) && (
-                              <span title="Submission reminder: Please upload attendance and TODA files" className="cursor-help">
-                                <Bell className="h-4 w-4 text-orange-500 animate-pulse" />
-                              </span>
+                            <p className={`text-gray-900 ${priorityStyles.text}`}>
+                              {activity.name}
+                              {activity.priority && (
+                                <span className={`ml-2 inline-block px-2 py-0.5 ${priorityStyles.badge} text-xs font-semibold rounded`}>
+                                  {priorityStyles.label}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <p className="text-sm text-gray-500">{formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}</p>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="text-sm text-gray-600">{activity.project}</span>
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-gray-400" />
+                          <div>
+                            <span className="text-sm">
+                              {new Date(activity.date).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric"
+                              })}
+                            </span>
+                            {activity.originalDate && (
+                              <p className="text-xs text-gray-500">
+                                Moved from {new Date(activity.originalDate).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric"
+                                })}
+                              </p>
                             )}
                           </div>
-                        <div className="text-xs text-gray-500" hidden></div>
                         </div>
-                      ) : (
-                        <span className="text-xs text-gray-500">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2 flex-wrap">
-                        <Badge className={getStatusColor(activity.status)}>
-                          {activity.status}
-                        </Badge>
-                        {activity.priority === "Urgent" && (
-                          <Badge className="bg-red-600 text-white">
-                            Urgent
-                          </Badge>
+                      </TableCell>
+
+                      <TableCell>
+                        <div>
+                          <p className="text-sm text-gray-900">{activity.province}</p>
+                          <p className="text-xs text-gray-500">{activity.barangay}</p>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm">{activity.participants}</span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        {activity.createdBy ? (
+                          <div className="text-xs text-gray-700">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-900">{activity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase())}</span>
+                              {activity.status === "Submission of Documents" && activity.date <= new Date().toISOString().slice(0, 10) && (
+                                <span title="Submission reminder: Please upload attendance and TODA files" className="cursor-help">
+                                  <Bell className="h-4 w-4 text-orange-500 animate-pulse" />
+                                </span>
+                              )}
+                            </div>
+                          <div className="text-xs text-gray-500" hidden></div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-500">—</span>
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="gap-2">
-                              <Eye className="h-4 w-4" />
-                              View
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle>{activity.name}</DialogTitle>
-                              <DialogDescription>Activity Details</DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 mt-4">
-                              {(activity.changeReason || activity.originalDate) && (
-                                <Alert className="bg-yellow-50 border-yellow-200">
-                                  <AlertCircle className="h-4 w-4 text-yellow-600" />
-                                  <AlertDescription className="text-yellow-800">
-                                    <p className="font-medium mb-1">Activity Status Changed</p>
-                                    {activity.originalDate && (
-                                      <p className="text-sm">
-                                        Original Date: {new Date(activity.originalDate).toLocaleDateString("en-US", {
-                                          month: "long",
-                                          day: "numeric",
-                                          year: "numeric"
-                                        })}
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex gap-2 flex-wrap">
+                          <Badge className={getStatusColor(activity.status)}>
+                            {activity.status}
+                          </Badge>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => {
+                                  setViewAssignedPersonnel([]);
+                                  setViewLoadingAssignedPersonnel(true);
+                                  const activityId = parseActivityId(activity.id);
+                                  if (!activityId) {
+                                    setViewLoadingAssignedPersonnel(false);
+                                    return;
+                                  }
+                                  activitiesAPI.getAssignedPersonnel(activityId)
+                                    .then((resp) => {
+                                      setViewAssignedPersonnel(resp.data || []);
+                                    })
+                                    .catch((err) => {
+                                      console.warn("Failed to load assigned personnel:", err);
+                                      setViewAssignedPersonnel([]);
+                                    })
+                                    .finally(() => setViewLoadingAssignedPersonnel(false));
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                                View
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle>{activity.name}</DialogTitle>
+                                <DialogDescription>Activity Details</DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4 mt-4">
+                                {(activity.changeReason || activity.originalDate) && (
+                                  <Alert className="bg-yellow-50 border-yellow-200">
+                                    <AlertCircle className="h-4 w-4 text-yellow-600" />
+                                    <AlertDescription className="text-yellow-800">
+                                      <p className="font-medium mb-1">Activity Status Changed</p>
+                                      {activity.originalDate && (
+                                        <p className="text-sm">
+                                          Original Date: {new Date(activity.originalDate).toLocaleDateString("en-US", {
+                                            month: "long",
+                                            day: "numeric",
+                                            year: "numeric"
+                                          })}
+                                        </p>
+                                      )}
+                                      {activity.changeReason && (
+                                        <p className="text-sm mt-1">Reason: {activity.changeReason}</p>
+                                      )}
+                                      {activity.changeDate && (
+                                        <p className="text-xs mt-1">
+                                          Changed on: {new Date(activity.changeDate).toLocaleDateString("en-US", {
+                                            month: "short",
+                                            day: "numeric",
+                                            year: "numeric",
+                                            hour: "2-digit",
+                                            minute: "2-digit"
+                                          })}
+                                        </p>
+                                      )}
+                                    </AlertDescription>
+                                  </Alert>
+                                )}
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <p className="text-sm text-gray-600">Project/Program</p>
+                                    <p className="text-gray-900">{activity.project}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-gray-600">Created By</p>
+                                    <p className="text-gray-900">
+                                      {activity.createdBy ? activity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase()) : "—"}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-gray-600">Start Date</p>
+                                    <p className="text-gray-900">
+                                      {new Date(activity.date).toLocaleDateString("en-US", {
+                                        month: "long",
+                                        day: "numeric",
+                                        year: "numeric"
+                                      })}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-gray-600">End Date</p>
+                                    <p className="text-gray-900">
+                                      {activity.endDate
+                                        ? new Date(activity.endDate).toLocaleDateString("en-US", {
+                                            month: "long",
+                                            day: "numeric",
+                                            year: "numeric"
+                                          })
+                                        : new Date(activity.date).toLocaleDateString("en-US", {
+                                            month: "long",
+                                            day: "numeric",
+                                            year: "numeric"
+                                          })}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-gray-600">Time</p>
+                                    <p className="text-gray-900">{formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-gray-600">Duration</p>
+                                    <p className="text-gray-900">{activity.duration}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-gray-600">Assigned Personnel</p>
+                                    {viewLoadingAssignedPersonnel ? (
+                                      <p className="text-gray-500 text-sm">Loading assigned personnel...</p>
+                                    ) : (
+                                      <p className="text-gray-900">
+                                        {viewAssignedPersonnel.length > 0
+                                          ? viewAssignedPersonnel
+                                              .map((p) => {
+                                                const label = p.fullName.toUpperCase();
+                                                const projectLabel = p.project ? ` (${p.project})` : "";
+                                                const taskLabel = p.task ? ` - ${p.task}` : "";
+                                                return `${label}${projectLabel}${taskLabel}`;
+                                              })
+                                              .join(", ")
+                                          : "None"}
                                       </p>
                                     )}
-                                    {activity.changeReason && (
-                                      <p className="text-sm mt-1">Reason: {activity.changeReason}</p>
-                                    )}
-                                    {activity.changeDate && (
-                                      <p className="text-xs mt-1">
-                                        Changed on: {new Date(activity.changeDate).toLocaleDateString("en-US", {
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-gray-600">Mode</p>
+                                    <p className="text-gray-900">{activity.mode}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-gray-600">Participants</p>
+                                    <p className="text-gray-900">{activity.participants}</p>
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <p className="text-sm text-gray-600">Location</p>
+                                  <p className="text-gray-900">
+                                    {activity.barangay}, {activity.district}, {activity.province}
+                                  </p>
+                                </div>
+                                
+                                <div>
+                                  <p className="text-sm text-gray-600">Target Sector</p>
+                                  <div className="flex flex-wrap gap-2 mt-1">
+                                    {activity.targetSector.map((sector) => (
+                                      <Badge key={sector} variant="outline">
+                                        {sector}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <p className="text-sm text-gray-600">Partner Institution</p>
+                                  <p className="text-gray-900">{activity.partnerInstitution}</p>
+                                </div>
+                                
+                                <div>
+                                  <p className="text-sm text-gray-600">Resource Person/Unit</p>
+                                  <p className="text-gray-900">{activity.resourcePerson}</p>
+                                </div>
+                                
+                                {activity.notes && (
+                                  <div>
+                                    <p className="text-sm text-gray-600">Notes</p>
+                                    <p className="text-gray-900">{activity.notes}</p>
+                                  </div>
+                                )}
+                                
+                                {activity.attendanceFileName && (
+                                  <div>
+                                    <p className="text-sm text-gray-600">Attendance File</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <FileText className="h-4 w-4 text-blue-600" />
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            const resp = await api.get(`/activities/${activity.id}/file/attendance`, { responseType: 'blob' });
+                                            const blob = new Blob([resp.data]);
+                                            const url = URL.createObjectURL(blob);
+                                            window.open(url, '_blank');
+                                            setTimeout(() => URL.revokeObjectURL(url), 60000);
+                                          } catch (err) {
+                                            console.error('Failed to fetch attendance file', err);
+                                          }
+                                        }}
+                                        className="text-blue-600 hover:underline text-sm"
+                                      >
+                                        {activity.attendanceFileName}
+                                      </button>
+                                    </div>
+                                    {activity.attendanceUploadDate && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Uploaded: {new Date(activity.attendanceUploadDate).toLocaleDateString("en-US", {
                                           month: "short",
                                           day: "numeric",
                                           year: "numeric",
@@ -1145,210 +1402,84 @@ return (
                                         })}
                                       </p>
                                     )}
-                                  </AlertDescription>
-                                </Alert>
-                              )}
-                              
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <p className="text-sm text-gray-600">Project/Program</p>
-                                  <p className="text-gray-900">{activity.project}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-gray-600">Created By</p>
-                                  <p className="text-gray-900">
-                                    {activity.createdBy ? activity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase()) : "—"}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-gray-600">Start Date</p>
-                                  <p className="text-gray-900">
-                                    {new Date(activity.date).toLocaleDateString("en-US", {
-                                      month: "long",
-                                      day: "numeric",
-                                      year: "numeric"
-                                    })}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-gray-600">End Date</p>
-                                  <p className="text-gray-900">
-                                    {activity.endDate
-                                      ? new Date(activity.endDate).toLocaleDateString("en-US", {
-                                          month: "long",
-                                          day: "numeric",
-                                          year: "numeric"
-                                        })
-                                      : new Date(activity.date).toLocaleDateString("en-US", {
-                                          month: "long",
-                                          day: "numeric",
-                                          year: "numeric"
-                                        })}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-gray-600">Time</p>
-                                  <p className="text-gray-900">{formatTimeDisplay(activity.timeStart)} - {formatTimeDisplay(activity.timeEnd)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-gray-600">Duration</p>
-                                  <p className="text-gray-900">{activity.duration}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-gray-600">Mode</p>
-                                  <p className="text-gray-900">{activity.mode}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-gray-600">Participants</p>
-                                  <p className="text-gray-900">{activity.participants}</p>
-                                </div>
-                              </div>
-                              
-                              <div>
-                                <p className="text-sm text-gray-600">Location</p>
-                                <p className="text-gray-900">
-                                  {activity.barangay}, {activity.district}, {activity.province}
-                                </p>
-                              </div>
-                              
-                              <div>
-                                <p className="text-sm text-gray-600">Target Sector</p>
-                                <div className="flex flex-wrap gap-2 mt-1">
-                                  {activity.targetSector.map((sector) => (
-                                    <Badge key={sector} variant="outline">
-                                      {sector}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                              
-                              <div>
-                                <p className="text-sm text-gray-600">Partner Institution</p>
-                                <p className="text-gray-900">{activity.partnerInstitution}</p>
-                              </div>
-                              
-                              <div>
-                                <p className="text-sm text-gray-600">Resource Person/Unit</p>
-                                <p className="text-gray-900">{activity.resourcePerson}</p>
-                              </div>
-                              
-                              {activity.notes && (
-                                <div>
-                                  <p className="text-sm text-gray-600">Notes</p>
-                                  <p className="text-gray-900">{activity.notes}</p>
-                                </div>
-                              )}
-                              
-                              {activity.attendanceFileName && (
-                                <div>
-                                  <p className="text-sm text-gray-600">Attendance File</p>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <FileText className="h-4 w-4 text-blue-600" />
-                                    <button
-                                      onClick={async () => {
-                                        try {
-                                          const resp = await api.get(`/activities/${activity.id}/file/attendance`, { responseType: 'blob' });
-                                          const blob = new Blob([resp.data]);
-                                          const url = URL.createObjectURL(blob);
-                                          window.open(url, '_blank');
-                                          setTimeout(() => URL.revokeObjectURL(url), 60000);
-                                        } catch (err) {
-                                          console.error('Failed to fetch attendance file', err);
-                                        }
-                                      }}
-                                      className="text-blue-600 hover:underline text-sm"
-                                    >
-                                      {activity.attendanceFileName}
-                                    </button>
                                   </div>
-                                  {activity.attendanceUploadDate && (
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      Uploaded: {new Date(activity.attendanceUploadDate).toLocaleDateString("en-US", {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit"
-                                      })}
-                                    </p>
-                                  )}
-                                </div>
-                              )}
+                                )}
 
-                              {activity.todaFileName && (
-                                <div>
-                                  <p className="text-sm text-gray-600">TODA File</p>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <FileText className="h-4 w-4 text-blue-600" />
-                                    <button
-                                      onClick={async () => {
-                                        try {
-                                          const resp = await api.get(`/activities/${activity.id}/file/toda`, { responseType: 'blob' });
-                                          const blob = new Blob([resp.data]);
-                                          const url = URL.createObjectURL(blob);
-                                          window.open(url, '_blank');
-                                          setTimeout(() => URL.revokeObjectURL(url), 60000);
-                                        } catch (err) {
-                                          console.error('Failed to fetch TODA file', err);
-                                        }
-                                      }}
-                                      className="text-blue-600 hover:underline text-sm"
-                                    >
-                                      {activity.todaFileName}
-                                    </button>
+                                {activity.todaFileName && (
+                                  <div>
+                                    <p className="text-sm text-gray-600">TODA File</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <FileText className="h-4 w-4 text-blue-600" />
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            const resp = await api.get(`/activities/${activity.id}/file/toda`, { responseType: 'blob' });
+                                            const blob = new Blob([resp.data]);
+                                            const url = URL.createObjectURL(blob);
+                                            window.open(url, '_blank');
+                                            setTimeout(() => URL.revokeObjectURL(url), 60000);
+                                          } catch (err) {
+                                            console.error('Failed to fetch TODA file', err);
+                                          }
+                                        }}
+                                        className="text-blue-600 hover:underline text-sm"
+                                      >
+                                        {activity.todaFileName}
+                                      </button>
+                                    </div>
+                                    {activity.todaUploadDate && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Uploaded: {new Date(activity.todaUploadDate).toLocaleDateString("en-US", {
+                                          month: "short",
+                                          day: "numeric",
+                                          year: "numeric",
+                                          hour: "2-digit",
+                                          minute: "2-digit"
+                                        })}
+                                      </p>
+                                    )}
                                   </div>
-                                  {activity.todaUploadDate && (
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      Uploaded: {new Date(activity.todaUploadDate).toLocaleDateString("en-US", {
-                                        month: "short",
-                                        day: "numeric",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit"
-                                      })}
-                                    </p>
-                                  )}
+                                )}
+                                
+                                <div>
+                                  <p className="text-sm text-gray-600">Status</p>
+                                  <Badge className={getStatusColor(activity.status)}>
+                                    {activity.status}
+                                  </Badge>
                                 </div>
-                              )}
-                              
-                              <div>
-                                <p className="text-sm text-gray-600">Status</p>
-                                <Badge className={getStatusColor(activity.status)}>
-                                  {activity.status}
-                                </Badge>
                               </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                        
-                        {/* Removed Submit button from Activity Records - submissions handled elsewhere */}
-                        
+                            </DialogContent>
+                          </Dialog>
+                          
+                          {/* Removed Submit button from Activity Records - submissions handled elsewhere */}
+                          
 {activity.status === "For Approval" && (user?.role === "admin" || user?.role === "superadmin") && (
-                          <div className="flex gap-2">
-                            <Button
-                              variant="default"
-                              size="sm"
-                              className="gap-2 bg-green-600 hover:bg-green-700"
-                              onClick={() => openApprovalDialog(activity, "approve")}
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                              Approve
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => openApprovalDialog(activity, "reject")}
-                            >
-                              <XCircle className="h-4 w-4" />
-                              Reject
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                            <div className="flex gap-2">
+                              <Button
+                                variant="default"
+                                size="sm"
+                                className="gap-2 bg-green-600 hover:bg-green-700"
+                                onClick={() => openApprovalDialog(activity, "approve")}
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                                Approve
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => openApprovalDialog(activity, "reject")}
+                              >
+                                <XCircle className="h-4 w-4" />
+                                Reject
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

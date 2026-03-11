@@ -13,6 +13,7 @@ interface User {
   idNumber: string;
   email: string;
   project: string;
+  officeAssignment?: string;
   role?: string;
 }
 
@@ -25,6 +26,7 @@ interface LocalUser {
   middle_name?: string;
   last_name: string;
   project: string;
+  office_assignment?: string;
 }
 
 interface AuthContextType {
@@ -32,7 +34,7 @@ interface AuthContextType {
   loading: boolean;
   login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
-  register: (username: string, email: string, password: string, confirmPassword: string, firstName: string, middleName: string, lastName: string, project: string) => Promise<{ success: boolean; message: string }>;
+  register: (username: string, email: string, password: string, confirmPassword: string, firstName: string, middleName: string, lastName: string, project: string, officeAssignment: string) => Promise<{ success: boolean; message: string }>;
   updateUserProfile: (updatedData: Partial<User>) => void;
   refreshUserProfile: () => Promise<void>;
 }
@@ -92,7 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               lastName: localUser.last_name,
               idNumber: localUser.username,
               email: localUser.email,
-              project: localUser.project
+              project: localUser.project,
+              officeAssignment: localUser.office_assignment
             };
             setUser(userData);
             setLoading(false);
@@ -196,7 +199,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           lastName: localUser.last_name,
           idNumber: localUser.username,
           email: localUser.email,
-          project: localUser.project
+          project: localUser.project,
+          officeAssignment: localUser.office_assignment
         };
 
         setUser(userData);
@@ -207,9 +211,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (username: string, email: string, password: string, confirmPassword: string, firstName: string, middleName: string, lastName: string, project: string): Promise<{ success: boolean; message: string }> => {
+  const register = async (username: string, email: string, password: string, confirmPassword: string, firstName: string, middleName: string, lastName: string, project: string, officeAssignment: string): Promise<{ success: boolean; message: string }> => {
     // Client-side validation
-    if (!username || !email || !password || !confirmPassword || !firstName || !lastName || !project) {
+    if (!username || !email || !password || !confirmPassword || !firstName || !lastName || !project || !officeAssignment) {
       return { success: false, message: "All required fields are required" };
     }
 
@@ -244,7 +248,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           firstName,
           middleName: middleName || undefined,
           lastName,
-          project
+          project,
+          officeAssignment
         });
 
         return { success: true, message: "Registration successful" };
@@ -278,7 +283,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           first_name: firstName,
           middle_name: middleName || undefined,
           last_name: lastName,
-          project
+          project,
+          office_assignment: officeAssignment
         };
         
         // Add to users and save

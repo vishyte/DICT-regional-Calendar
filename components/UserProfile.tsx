@@ -18,7 +18,8 @@ export function UserProfile() {
     lastName: user?.lastName || "",
     email: user?.email || "",
     username: user?.idNumber || "",
-    project: user?.project || ""
+    project: user?.project || "",
+    officeAssignment: user?.officeAssignment || ""
   });
   
   // Refresh user profile from backend when component mounts to get latest role info
@@ -35,7 +36,8 @@ export function UserProfile() {
         lastName: user.lastName || "",
         email: user.email || "",
         username: user.idNumber || "",
-        project: user.project || ""
+        project: user.project || "",
+        officeAssignment: user.officeAssignment || ""
       });
     }
   }, [user]);
@@ -78,7 +80,8 @@ export function UserProfile() {
       const updateData = {
         fullName: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim(),
         project: formData.project,
-        email: formData.email
+        email: formData.email,
+        officeAssignment: formData.officeAssignment
       };
 
       // Call the backend API to update the user profile
@@ -92,6 +95,7 @@ export function UserProfile() {
           lastName: formData.lastName,
           email: formData.email,
           project: formData.project,
+          officeAssignment: formData.officeAssignment,
           fullName: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim()
         });
         
@@ -114,7 +118,8 @@ export function UserProfile() {
       lastName: user?.lastName || "",
       email: user?.email || "",
       username: user?.idNumber || "",
-      project: user?.project || ""
+      project: user?.project || "",
+      officeAssignment: user?.officeAssignment || ""
     });
     setIsEditing(false);
   };
@@ -297,6 +302,35 @@ export function UserProfile() {
                   {projects.map(p => (
                     <option key={p} value={p}>{p}</option>
                   ))}
+                </select>
+              )}
+            </div>
+
+            {/* Office Assignment */}
+            <div className="space-y-2">
+              <Label htmlFor="officeAssignment" className="text-gray-700 font-medium">
+                Office Assignment
+              </Label>
+              {!isEditing ? (
+                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <User className="h-4 w-4 text-gray-400" />
+                  <p className="text-gray-900">{formData.officeAssignment}</p>
+                </div>
+              ) : (
+                <select
+                  id="officeAssignment"
+                  name="officeAssignment"
+                  value={formData.officeAssignment}
+                  onChange={handleInputChange}
+                  className="w-full border-gray-300 rounded"
+                >
+                  <option value="">Select office assignment</option>
+                  <option value="Regional Office">Regional Office</option>
+                  <option value="Davao de Oro Provincial Office">Davao de Oro Provincial Office</option>
+                  <option value="Davao del Sur Provincial Office">Davao del Sur Provincial Office</option>
+                  <option value="Davao del Norte Provincial Office">Davao del Norte Provincial Office</option>
+                  <option value="Davao Occidental Provincial Office">Davao Occidental Provincial Office</option>
+                  <option value="Davao Oriental Provincial Office">Davao Oriental Provincial Office</option>
                 </select>
               )}
             </div>
