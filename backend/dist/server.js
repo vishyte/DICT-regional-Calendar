@@ -42,8 +42,8 @@ app.use((err, req, res, next) => {
 async function runMigrations() {
     try {
         console.log('Running database migrations...');
-        await database_1.default.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL, email VARCHAR(255) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, first_name VARCHAR(100) NOT NULL, middle_name VARCHAR(100), last_name VARCHAR(100) NOT NULL, project VARCHAR(255) NOT NULL, role VARCHAR(20) DEFAULT 'user', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
-        await database_1.default.query(`CREATE TABLE IF NOT EXISTS activities (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, date DATE NOT NULL, end_date DATE, original_date DATE, time VARCHAR(20) NOT NULL, end_time VARCHAR(20) NOT NULL, location VARCHAR(255) NOT NULL, venue VARCHAR(255) NOT NULL, venue_address TEXT, sector VARCHAR(100) NOT NULL, project VARCHAR(255) NOT NULL, description TEXT, participants INTEGER, facilitator VARCHAR(255), status VARCHAR(20) DEFAULT 'Scheduled', change_reason TEXT, change_date DATE, created_by_id INTEGER, priority VARCHAR(20) DEFAULT 'Normal', partner_institution VARCHAR(255), mode VARCHAR(50), platform VARCHAR(255), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (created_by_id) REFERENCES users(id))`);
+        await database_1.default.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL, email VARCHAR(255) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, first_name VARCHAR(100) NOT NULL, middle_name VARCHAR(100), last_name VARCHAR(100) NOT NULL, project VARCHAR(255) NOT NULL, office_assignment VARCHAR(255), role VARCHAR(20) DEFAULT 'user', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+        await database_1.default.query(`CREATE TABLE IF NOT EXISTS activities (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, date DATE NOT NULL, end_date DATE, original_date DATE, time VARCHAR(20) NOT NULL, end_time VARCHAR(20) NOT NULL, location VARCHAR(255) NOT NULL, venue VARCHAR(255) NOT NULL, venue_address TEXT, sector VARCHAR(100) NOT NULL, project VARCHAR(255) NOT NULL, description TEXT, participants INTEGER, facilitator VARCHAR(255), status VARCHAR(20) DEFAULT 'Scheduled', requested_status VARCHAR(50), change_reason TEXT, change_date DATE, created_by_id INTEGER, priority VARCHAR(20) DEFAULT 'Normal', partner_institution VARCHAR(255), mode VARCHAR(50), platform VARCHAR(255), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (created_by_id) REFERENCES users(id))`);
         await database_1.default.query(`CREATE TABLE IF NOT EXISTS assigned_personnel (id SERIAL PRIMARY KEY, activity_id INTEGER NOT NULL, user_id INTEGER NOT NULL, task VARCHAR(255) NOT NULL, UNIQUE(activity_id, user_id), FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
         await database_1.default.query(`CREATE TABLE IF NOT EXISTS documents (id SERIAL PRIMARY KEY, activity_id INTEGER NOT NULL, name VARCHAR(255) NOT NULL, url TEXT NOT NULL, upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE)`);
         // ensure activity document columns exist (used for attendance & TODA storage)
@@ -59,11 +59,19 @@ async function runMigrations() {
             // some SQLite versions do not support IF NOT EXISTS; ignore errors
             console.warn('Could not add document storage columns (they may already exist):', err?.message || err);
         }
+        // ensure office assignment is stored in the users table (for existing dbs)
+        try {
+            await database_1.default.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS office_assignment VARCHAR(255)`);
+        }
+        catch (err) {
+            console.warn('Could not add office_assignment column to users table (may already exist):', err?.message || err);
+        }
         // ensure approval columns exist
         try {
             await database_1.default.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS approved_by_id INTEGER`);
             await database_1.default.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`);
             await database_1.default.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS approval_notes TEXT`);
+            await database_1.default.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS requested_status VARCHAR(50)`);
         }
         catch (err) {
             console.warn('Could not add approval columns (they may already exist):', err?.message || err);

@@ -86,9 +86,9 @@ export function UserProfile() {
 
       // Call the backend API to update the user profile
       const response = await usersAPI.update(user.id, updateData);
-      
-      if (response.data) {
-        // Update the user context with the new data
+
+      // If the request succeeded, update the user context so UI updates (including sidebar)
+      if (response && response.status >= 200 && response.status < 300) {
         updateUserProfile({
           firstName: formData.firstName,
           middleName: formData.middleName,
@@ -98,7 +98,7 @@ export function UserProfile() {
           officeAssignment: formData.officeAssignment,
           fullName: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim()
         });
-        
+
         setSuccessMessage("Profile updated successfully!");
         setIsEditing(false);
         setTimeout(() => setSuccessMessage(""), 3000);

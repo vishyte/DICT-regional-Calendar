@@ -353,7 +353,10 @@ function AppContent() {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-900 truncate">{(user?.fullName || `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim()).toUpperCase()}</p>
-              <p className="text-xs text-gray-700 truncate mt-0.5">eGOV</p>
+              <p className="text-xs text-gray-700 truncate mt-0.5">{(user?.project || 'eGOV').toUpperCase()}</p>
+              {user?.officeAssignment && (
+                <p className="text-xs text-gray-700 truncate mt-0.5">{user.officeAssignment}</p>
+              )}
               <div className="mt-1">
                 <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
                   {(user?.role === 'admin' || user?.role === 'superadmin') ? 'Admin' : 'Staff'}

@@ -38,10 +38,10 @@ async function saveRegistrationBackup(userData: any) {
 // Register user
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password, firstName, middleName, lastName, project } = req.body;
+    const { username, email, password, firstName, middleName, lastName, project, officeAssignment } = req.body;
 
     // Validate required fields
-    if (!username || !email || !password || !firstName || !lastName || !project) {
+    if (!username || !email || !password || !firstName || !lastName || !project || !officeAssignment) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -56,9 +56,9 @@ router.post('/register', async (req, res) => {
 
     // Insert user (default role = 'user')
     const result = await pool.query(
-      `INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project, role)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-      [username, email, passwordHash, firstName, middleName || null, lastName, project, 'user']
+      `INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project, office_assignment, role)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [username, email, passwordHash, firstName, middleName || null, lastName, project, officeAssignment, 'user']
     );
 
     // Fetch inserted user (include role)
@@ -100,7 +100,8 @@ router.post('/register', async (req, res) => {
       firstName: req.body.firstName,
       middleName: req.body.middleName,
       lastName: req.body.lastName,
-      project: req.body.project
+      project: req.body.project,
+      officeAssignment: req.body.officeAssignment
     };
     
     const backedUpSuccessfully = await saveRegistrationBackup(backupData);
@@ -151,6 +152,7 @@ router.post('/login', async (req, res) => {
         idNumber: user.username,
         email: user.email,
         project: user.project,
+        officeAssignment: user.office_assignment,
         role: user.role || 'user'
       }
     });
@@ -163,7 +165,7 @@ router.post('/login', async (req, res) => {
 // Get current user profile
 router.get('/profile', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const result = await pool.query('SELECT id, username, email, first_name, middle_name, last_name, project, role FROM users WHERE id = ?', [req.user!.id]);
+    const result = await pool.query('SELECT id, username, email, first_name, middle_name, last_name, project, office_assignment, role FROM users WHERE id = ?', [req.user!.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -179,6 +181,7 @@ router.get('/profile', authenticateToken, async (req: AuthRequest, res) => {
       idNumber: user.username,
       email: user.email,
       project: user.project,
+      officeAssignment: user.office_assignment,
       role: user.role || 'user'
     });
   } catch (error) {
@@ -329,7 +332,7 @@ router.post('/superadmin/login', async (req, res) => {
 router.get('/all', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, username, email, first_name, middle_name, last_name, project, role, created_at 
+      `SELECT id, username, email, first_name, middle_name, last_name, project, office_assignment, role, created_at 
        FROM users 
        ORDER BY created_at DESC`
     );
@@ -340,6 +343,7 @@ router.get('/all', authenticateToken, async (req: AuthRequest, res) => {
       fullName: `${user.first_name} ${user.middle_name ? user.middle_name + ' ' : ''}${user.last_name}`,
       email: user.email,
       project: user.project,
+      officeAssignment: user.office_assignment,
       role: user.role || 'user',
       createdAt: user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       status: 'active' as const
@@ -355,10 +359,10 @@ router.get('/all', authenticateToken, async (req: AuthRequest, res) => {
 // Create user (for superadmin)
 router.post('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const { username, email, password, fullName, project, role } = req.body;
+    const { username, email, password, fullName, project, officeAssignment, role } = req.body;
 
     // Validate required fields
-    if (!username || !email || !password || !fullName || !project) {
+    if (!username || !email || !password || !fullName || !project || !officeAssignment) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
@@ -381,11 +385,11 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Insert user (include role)
+    // Insert user (include role and office assignment)
     const result = await pool.query(
-      `INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project, role)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-      [username, email, passwordHash, firstName, middleName || null, lastName, project, role || 'user']
+      `INSERT INTO users (username, email, password_hash, first_name, middle_name, last_name, project, office_assignment, role)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [username, email, passwordHash, firstName, middleName || null, lastName, project, officeAssignment, role || 'user']
     );
 
     // Fetch inserted user
@@ -405,6 +409,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       fullName: `${user.first_name} ${user.middle_name ? user.middle_name + ' ' : ''}${user.last_name}`,
       email: user.email,
       project: user.project,
+      officeAssignment: user.office_assignment,
       role: user.role || role || 'user',
       createdAt: user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       status: 'active'
@@ -423,8 +428,8 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
 router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const { username, email, fullName, project, role, password } = req.body;
-    console.log(`PUT /users/${userId} payload:`, { username, email, fullName, project, role, password: password ? '[REDACTED]' : undefined });
+    const { username, email, fullName, project, officeAssignment, role, password } = req.body;
+    console.log(`PUT /users/${userId} payload:`, { username, email, fullName, project, officeAssignment, role, password: password ? '[REDACTED]' : undefined });
 
     // Check if user exists
     const existingUser = await pool.query('SELECT id FROM users WHERE id = ?', [userId]);
@@ -485,6 +490,11 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
       params.push(project);
     }
 
+    if (officeAssignment !== undefined) {
+      updates.push('office_assignment = ?');
+      params.push(officeAssignment);
+    }
+
     if (password) {
       const passwordHash = await bcrypt.hash(password, 10);
       updates.push('password_hash = ?');
@@ -512,7 +522,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
 
     // Fetch updated user (include role)
     const userResult = await pool.query(
-      'SELECT id, username, email, first_name, middle_name, last_name, project, role, created_at FROM users WHERE id = ?',
+      'SELECT id, username, email, first_name, middle_name, last_name, project, office_assignment, role, created_at FROM users WHERE id = ?',
       [userId]
     );
 
@@ -527,6 +537,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
       fullName: `${user.first_name} ${user.middle_name ? user.middle_name + ' ' : ''}${user.last_name}`,
       email: user.email,
       project: user.project,
+      officeAssignment: user.office_assignment,
       role: user.role || role || 'user',
       createdAt: user.created_at ? new Date(user.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       status: 'active'

@@ -17,6 +17,7 @@ async function createTables() {
         middle_name VARCHAR(100),
         last_name VARCHAR(100) NOT NULL,
         project VARCHAR(255) NOT NULL,
+        office_assignment VARCHAR(255),
         role VARCHAR(20) DEFAULT 'user',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -41,6 +42,7 @@ async function createTables() {
         participants INTEGER,
         facilitator VARCHAR(255),
         status VARCHAR(20) DEFAULT 'Scheduled',
+        requested_status VARCHAR(50),
         change_reason TEXT,
         change_date DATE,
         created_by_id INTEGER,
@@ -89,10 +91,14 @@ async function createTables() {
                 await database_1.default.query("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'");
                 console.log('✅ Added role column to users table');
             }
+            if (!cols.includes('office_assignment')) {
+                await database_1.default.query("ALTER TABLE users ADD COLUMN office_assignment VARCHAR(255)");
+                console.log('✅ Added office_assignment column to users table');
+            }
         }
         catch (err) {
             // Non-fatal: log and continue
-            console.warn('Could not ensure role column exists:', err);
+            console.warn('Could not ensure users table columns exist:', err);
         }
         // Ensure approval columns exist on activities table for upgrades
         try {
@@ -103,6 +109,11 @@ async function createTables() {
                 await database_1.default.query("ALTER TABLE activities ADD COLUMN approved_at DATETIME");
                 await database_1.default.query("ALTER TABLE activities ADD COLUMN approval_notes TEXT");
                 console.log('✅ Added approval columns to activities table');
+            }
+            // Add requested status column if it's missing
+            if (!cols.includes('requested_status')) {
+                await database_1.default.query("ALTER TABLE activities ADD COLUMN requested_status VARCHAR(50)");
+                console.log('✅ Added requested_status column to activities table');
             }
             // Add document upload columns if they don't exist
             if (!cols.includes('attendance_file_name')) {

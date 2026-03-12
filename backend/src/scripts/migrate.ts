@@ -13,6 +13,7 @@ async function createTables() {
         middle_name VARCHAR(100),
         last_name VARCHAR(100) NOT NULL,
         project VARCHAR(255) NOT NULL,
+        office_assignment VARCHAR(255),
         role VARCHAR(20) DEFAULT 'user',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -90,9 +91,13 @@ async function createTables() {
         await pool.query("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'");
         console.log('✅ Added role column to users table');
       }
+      if (!cols.includes('office_assignment')) {
+        await pool.query("ALTER TABLE users ADD COLUMN office_assignment VARCHAR(255)");
+        console.log('✅ Added office_assignment column to users table');
+      }
     } catch (err) {
       // Non-fatal: log and continue
-      console.warn('Could not ensure role column exists:', err);
+      console.warn('Could not ensure users table columns exist:', err);
     }
 
 // Ensure approval columns exist on activities table for upgrades

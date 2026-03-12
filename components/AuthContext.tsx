@@ -311,7 +311,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateUserProfile = (updatedData: Partial<User>) => {
     setUser((prevUser) => {
       if (!prevUser) return null;
-      return { ...prevUser, ...updatedData };
+      const newUser = { ...prevUser, ...updatedData };
+
+      // If this is a local user session, also update the stored local user
+      try {
+        const token = localStorage.getItem('auth_token') || '';
+        if (token.startsWith('local_')) {
+          const localUserStr = localStorage.getItem('current_local_user');
+          if (localUserStr) {
+            const localUser = JSON.parse(localUserStr);
+            // Map updated fields back to local user shape
+            if (updatedData.firstName !== undefined) localUser.first_name = updatedData.firstName;
+            if (updatedData.middleName !== undefined) localUser.middle_name = updatedData.middleName;
+            if (updatedData.lastName !== undefined) localUser.last_name = updatedData.lastName;
+            if (updatedData.email !== undefined) localUser.email = updatedData.email;
+            if (updatedData.project !== undefined) localUser.project = updatedData.project;
+            if (updatedData.officeAssignment !== undefined) localUser.office_assignment = updatedData.officeAssignment;
+            localStorage.setItem('current_local_user', JSON.stringify(localUser));
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to persist local user updates:', e);
+      }
+
+      return newUser;
     });
   };
 
