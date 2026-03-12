@@ -24,6 +24,7 @@ router.get('/', async (req: AuthRequest, res) => {
   try {
     const result = await pool.query(`
       SELECT a.*, 
+        a.creator_role,
         u.username as created_by_username, u.first_name, u.last_name, u.email, u.project as creator_project,
         ap.first_name as approver_first_name, ap.last_name as approver_last_name, ap.email as approver_email
       FROM activities a
@@ -76,6 +77,7 @@ router.get('/', async (req: AuthRequest, res) => {
         email: row.email,
         project: row.creator_project
       },
+      creatorRole: row.creator_role,
       priority: row.priority,
       partnerInstitution: row.partner_institution,
       mode: row.mode,
@@ -138,7 +140,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     const {
       name, date, endDate, time, endTime, location, venue, sector, project, description,
       participants, facilitator, priority, partnerInstitution, mode, platform,
-      venueAddress, assignedPersonnel
+      venueAddress, creatorRole, assignedPersonnel
     } = req.body;
 
     console.log('Activity data:', { name, date, time, endTime, location, venue, sector, project });
@@ -153,11 +155,11 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     const result = await pool.query(
       `INSERT INTO activities (
         name, date, end_date, time, end_time, location, venue, sector, project, description,
-        participants, facilitator, status, created_by_id, priority, partner_institution,
+        participants, facilitator, status, created_by_id, creator_role, priority, partner_institution,
         mode, platform, venue_address
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [name, date, endDate || null, time, endTime, location, venue, sector, project, description,
-       participants, facilitator, 'Scheduled', req.user!.id, priority, partnerInstitution,
+       participants, facilitator, 'Scheduled', req.user!.id, creatorRole || null, priority, partnerInstitution,
        mode, platform, venueAddress]
     );
 
@@ -377,7 +379,8 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
       'attendanceFileName': 'attendance_file_name',
       'attendanceUploadDate': 'attendance_upload_date',
       'todaFileName': 'toda_file_name',
-      'todaUploadDate': 'toda_upload_date'
+      'todaUploadDate': 'toda_upload_date',
+      'creatorRole': 'creator_role'
     };
 
     // Fields that should NOT be updated by the client

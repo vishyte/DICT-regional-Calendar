@@ -17,7 +17,7 @@ interface SystemUser {
   fullName: string;
   email: string;
   project: string;
-  role: "superadmin" | "admin" | "provincial_officer" | "user";
+  role: "superadmin" | "admin" | "provincial_officer" | "user" | "project_focal" | "project_team_lead";
   createdAt: string;
   status: "active" | "inactive";
 }
@@ -31,7 +31,7 @@ interface LocalUser {
   middle_name?: string;
   last_name: string;
   project: string;
-  role?: "superadmin" | "admin" | "provincial_officer" | "user";
+  role?: "superadmin" | "admin" | "provincial_officer" | "user" | "project_focal" | "project_team_lead";
 }
 
 function getLocalUsersAsSystemUsers(): SystemUser[] {
@@ -478,7 +478,9 @@ export function UserManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="admin">Project Admin</SelectItem>
+                    <SelectItem value="project_focal">Project Focal</SelectItem>
+                    <SelectItem value="project_team_lead">Project Team Lead</SelectItem>
+                    <SelectItem value="provincial_officer">Provincial Officer</SelectItem>
                     <SelectItem value="superadmin">Superadmin</SelectItem>
                   </SelectContent>
                 </Select>
@@ -520,14 +522,18 @@ export function UserManagement() {
                     variant={
                       user.role === "superadmin"
                         ? "default"
-                        : user.role === "admin"
-                        ? "secondary"
-                        : user.role === "provincial_officer"
+                        : ["admin", "project_focal", "project_team_lead", "provincial_officer"].includes(user.role)
                         ? "secondary"
                         : "outline"
                     }
                   >
-                    {user.role === "provincial_officer" ? "Provincial Officer" : user.role}
+                    {user.role === "provincial_officer"
+                      ? "Provincial Officer"
+                      : user.role === "project_focal" || user.role === "admin"
+                      ? "Project Focal"
+                      : user.role === "project_team_lead"
+                      ? "Project Team Lead"
+                      : user.role}
                   </Badge>
                 </TableCell>
                 <TableCell>

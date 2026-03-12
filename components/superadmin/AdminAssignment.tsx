@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "../ui/alert-dialog";
 
-type ProjectAdminRole = "admin" | "provincial_officer";
+type ProjectAdminRole = "project_focal" | "project_team_lead" | "provincial_officer" | "admin";
 
 interface ProjectAdmin {
   projectName: string;
@@ -32,7 +32,8 @@ interface ProjectAdmin {
 }
 
 const ROLE_OPTIONS: Array<{ value: ProjectAdminRole; label: string }> = [
-  { value: "admin", label: "Project Admin" },
+  { value: "project_focal", label: "Project Focal" },
+  { value: "project_team_lead", label: "Project Team Lead" },
   { value: "provincial_officer", label: "Provincial Officer" },
 ];
 
@@ -113,16 +114,16 @@ export function AdminAssignment() {
         }));
         setAdmins(mapped);
 
-        // Build assignments from server users with admin or provincial officer role
+        // Build assignments from server users with project roles or provincial officer role
         const adminAssignments = serverUsers
-          .filter((u: any) => u.role === "admin" || u.role === "provincial_officer")
+          .filter((u: any) => ["admin", "project_focal", "project_team_lead", "provincial_officer"].includes(u.role))
           .map((u: any) => ({
             projectName: u.project || "Unassigned",
             adminName: u.fullName || u.username,
             adminEmail: u.email || '',
             assignedDate: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             status: "active" as const,
-            role: u.role || "admin"
+            role: (u.role as ProjectAdminRole) || "project_focal"
           }));
 
         setAssignments(adminAssignments);
@@ -143,7 +144,7 @@ export function AdminAssignment() {
   const [selectedRole, setSelectedRole] = useState<ProjectAdminRole>("admin");
 
   const handleAssignAdmin = async () => {
-    const needsProject = selectedRole === "admin";
+    const needsProject = ["admin", "project_focal", "project_team_lead"].includes(selectedRole);
     if ((needsProject && !selectedProject) || !selectedAdmin) {
       toast.error("Please select both project and admin");
       return;
@@ -158,7 +159,7 @@ export function AdminAssignment() {
     try {
       // Update user role in backend; clear project when assigning Provincial Officer
       const updatePayload: any = { role: selectedRole };
-      if (selectedRole === "admin") {
+      if (["admin", "project_focal", "project_team_lead"].includes(selectedRole)) {
         updatePayload.project = selectedProject;
       } else {
         updatePayload.project = "";
@@ -201,9 +202,14 @@ export function AdminAssignment() {
       saveAssignments(newAssignments);
       setSelectedProject("");
       setSelectedAdmin("");
-      toast.success(
-        `${admin.name} assigned as ${selectedRole === "admin" ? "Project Admin" : "Provincial Officer"}`
-      );
+
+      const roleLabel = selectedRole === "provincial_officer"
+        ? "Provincial Officer"
+        : selectedRole === "project_team_lead"
+        ? "Project Team Lead"
+        : "Project Focal";
+
+      toast.success(`${admin.name} assigned as ${roleLabel}`);
     } catch (error) {
       console.error("Failed to assign admin:", error);
       toast.error("Failed to assign admin. Please ensure the user exists and try again.");
@@ -226,8 +232,14 @@ export function AdminAssignment() {
       );
       setAssignments(newAssignments);
       saveAssignments(newAssignments);
+      const removedRoleLabel = assignment.role === "provincial_officer"
+        ? "Provincial Officer"
+        : assignment.role === "project_team_lead"
+        ? "Project Team Lead"
+        : "Project Focal";
+
       toast.success(
-        `Admin ${assignment.adminName} removed from ${assignment.role === "admin" ? assignment.projectName : "Provincial Officer"}`
+        `Admin ${assignment.adminName} removed from ${assignment.role === "provincial_officer" ? removedRoleLabel : assignment.projectName}`
       );
     } catch (error) {
       console.error("Failed to remove assignment:", error);
@@ -351,7 +363,11 @@ export function AdminAssignment() {
                       <TableCell className="text-sm text-gray-600">{assignment.adminEmail}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="uppercase text-xs">
-                          {assignment.role === "provincial_officer" ? "Provincial Officer" : "Project Admin"}
+                          {assignment.role === "provincial_officer"
+                            ? "Provincial Officer"
+                            : assignment.role === "project_team_lead"
+                            ? "Project Team Lead"
+                            : "Project Focal"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm">{assignment.assignedDate}</TableCell>
@@ -375,11 +391,13 @@ export function AdminAssignment() {
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>
-                                Remove {assignment.role === "provincial_officer" ? "Provincial Officer" : "Project Admin"}?
+                                Remove {assignment.role === "provincial_officer" ? "Provincial Officer" : assignment.role === "project_team_lead" ? "Project Team Lead" : "Project Focal"}?
                               </AlertDialogTitle>
                               <AlertDialogDescription>
                                 Are you sure you want to remove <strong>{assignment.adminName}</strong>
-                                {assignment.role === "provincial_officer" ? " as Provincial Officer" : ` from ${assignment.projectName}`}?
+                                {assignment.role === "provincial_officer"
+                                  ? " as Provincial Officer"
+                                  : ` from ${assignment.projectName}`}?
                                 This action cannot be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>

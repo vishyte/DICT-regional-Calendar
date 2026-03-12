@@ -27,6 +27,7 @@ router.get('/', async (req, res) => {
     try {
         const result = await database_1.default.query(`
       SELECT a.*, 
+        a.creator_role,
         u.username as created_by_username, u.first_name, u.last_name, u.email, u.project as creator_project,
         ap.first_name as approver_first_name, ap.last_name as approver_last_name, ap.email as approver_email
       FROM activities a
@@ -77,6 +78,7 @@ router.get('/', async (req, res) => {
                 email: row.email,
                 project: row.creator_project
             },
+            creatorRole: row.creator_role,
             priority: row.priority,
             partnerInstitution: row.partner_institution,
             mode: row.mode,
@@ -127,7 +129,7 @@ async function syncAssignedPersonnel(activityId, assignedPersonnel) {
 router.post('/', middleware_1.authenticateToken, async (req, res) => {
     try {
         console.log('Creating activity, user:', req.user);
-        const { name, date, endDate, time, endTime, location, venue, sector, project, description, participants, facilitator, priority, partnerInstitution, mode, platform, venueAddress, assignedPersonnel } = req.body;
+        const { name, date, endDate, time, endTime, location, venue, sector, project, description, participants, facilitator, priority, partnerInstitution, mode, platform, venueAddress, creatorRole, assignedPersonnel } = req.body;
         console.log('Activity data:', { name, date, time, endTime, location, venue, sector, project });
         // Validate required fields
         if (!name || !date || !time || !endTime || !location || !venue || !sector || !project) {
@@ -136,10 +138,10 @@ router.post('/', middleware_1.authenticateToken, async (req, res) => {
         console.log('Inserting into activities table...');
         const result = await database_1.default.query(`INSERT INTO activities (
         name, date, end_date, time, end_time, location, venue, sector, project, description,
-        participants, facilitator, status, created_by_id, priority, partner_institution,
+        participants, facilitator, status, created_by_id, creator_role, priority, partner_institution,
         mode, platform, venue_address
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, [name, date, endDate || null, time, endTime, location, venue, sector, project, description,
-            participants, facilitator, 'Scheduled', req.user.id, priority, partnerInstitution,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, [name, date, endDate || null, time, endTime, location, venue, sector, project, description,
+            participants, facilitator, 'Scheduled', req.user.id, creatorRole || null, priority, partnerInstitution,
             mode, platform, venueAddress]);
         console.log('Insert result:', result);
         // Get the inserted activity ID
@@ -330,7 +332,8 @@ router.put('/:id', middleware_1.authenticateToken, async (req, res) => {
             'attendanceFileName': 'attendance_file_name',
             'attendanceUploadDate': 'attendance_upload_date',
             'todaFileName': 'toda_file_name',
-            'todaUploadDate': 'toda_upload_date'
+            'todaUploadDate': 'toda_upload_date',
+            'creatorRole': 'creator_role'
         };
         // Fields that should NOT be updated by the client
         const protectedFields = ['id', 'createdBy', 'created_by_id', 'created_at', 'approvedBy', 'approved_by_id', 'approvedAt', 'approved_at', 'approvalNotes', 'approval_notes'];

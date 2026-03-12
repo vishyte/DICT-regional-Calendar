@@ -728,6 +728,7 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                     {activity.createdBy && (
                       <div className="text-xs text-gray-600">
                         Created by {activity.createdBy.fullName.charAt(0).toUpperCase() + activity.createdBy.fullName.slice(1).toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
+                        {activity.creatorRole ? ` (${activity.creatorRole})` : ''}
                       </div>
                     )}
                     <div className="flex gap-2">
@@ -962,7 +963,12 @@ export function CalendarView({ onNavigateToActivity, onNavigateToProvinces, onNa
                       <UserCheck className="h-5 w-5 text-blue-600 mt-0.5" />
                       <div>
                         <div className="text-sm text-gray-600">Created By</div>
-                        <div className="text-gray-900">{selectedActivity.createdBy ? selectedActivity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase()) : "—"}</div>
+                        <div className="text-gray-900">
+                          {selectedActivity.createdBy ? selectedActivity.createdBy.fullName.replace(/\b\w/g, l => l.toUpperCase()) : "—"}
+                          {selectedActivity.creatorRole ? (
+                            <div className="text-xs text-gray-500">Role: {selectedActivity.creatorRole}</div>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-start gap-2">

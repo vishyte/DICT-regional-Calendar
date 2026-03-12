@@ -43,6 +43,7 @@ async function createTables() {
         change_reason TEXT,
         change_date DATE,
         created_by_id INTEGER,
+        creator_role VARCHAR(255),
         priority VARCHAR(20) DEFAULT 'Normal',
         partner_institution VARCHAR(255),
         mode VARCHAR(50),
@@ -114,6 +115,11 @@ async function createTables() {
       if (!cols.includes('requested_status')) {
         await pool.query("ALTER TABLE activities ADD COLUMN requested_status VARCHAR(50)");
         console.log('✅ Added requested_status column to activities table');
+      }
+      // Add creator role column if it's missing
+      if (!cols.includes('creator_role')) {
+        await pool.query("ALTER TABLE activities ADD COLUMN creator_role VARCHAR(255)");
+        console.log('✅ Added creator_role column to activities table');
       }
       // Add document upload columns if they don't exist
       if (!cols.includes('attendance_file_name')) {

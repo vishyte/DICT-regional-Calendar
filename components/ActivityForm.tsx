@@ -32,6 +32,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
   const [computedDuration, setComputedDuration] = useState<string>("");
   const [expectedParticipants, setExpectedParticipants] = useState<string>("");
   const [assignedPersonnel, setAssignedPersonnel] = useState<Array<{ idNumber: string; fullName: string; task: string }>>([]);
+  const [creatorRole, setCreatorRole] = useState<string>("");
   const [priority, setPriority] = useState<"Major Event" | "Minor Event" | "Core Task" | "Tech Assistance">("Core Task");
 
   const priorityDescriptions: Record<string, { emoji: string; title: string; description: string }> = {
@@ -452,7 +453,18 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
     try {
       // Format end date if it exists and is different from start date
       const endDateKey = endDate ? format(endDate, "yyyy-MM-dd") : undefined;
-      
+
+      const creatorAssigned = user && creatorRole ? [{
+        idNumber: user.idNumber,
+        fullName: user.fullName,
+        task: creatorRole
+      }] : [];
+
+      const assignedPayload = [
+        ...creatorAssigned,
+        ...assignedPersonnel.filter(p => p.idNumber !== user?.idNumber)
+      ];
+
       await addActivity({
         name,
         date: dateKey,
@@ -468,7 +480,8 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
         participants: participantsCount || undefined,
         facilitator,
         status: "Scheduled",
-        assignedPersonnel: assignedPersonnel.length > 0 ? assignedPersonnel : undefined,
+        assignedPersonnel: assignedPayload.length > 0 ? assignedPayload : undefined,
+        creatorRole: creatorRole || undefined,
         priority: priority,
         partnerInstitution: partnerInstitution || undefined,
         mode: selectedMode,
@@ -476,6 +489,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
       });
 
       toast.success("Activity created successfully");
+      setCreatorRole("");
       onSubmitted?.();
     } catch (error) {
       toast.error("Failed to create activity");
@@ -553,7 +567,9 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                 {user ? `${user.fullName} (${user.idNumber})` : "Guest"}
               </p>
               {user && (
-                <p className="text-xs text-blue-800">{user.email}</p>
+                <>
+                  <p className="text-xs text-blue-800">{user.email}</p>
+                </>
               )}
             </div>
           </div>
@@ -1140,8 +1156,26 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                 {allPersonnel.length === 0 && (
                   <p className="text-xs text-gray-500 mt-1">(no users available - please register users first or ensure backend is reachable)</p>
                 )}
-                {assignedPersonnel.length > 0 && (
+                {user || assignedPersonnel.length > 0 ? (
                   <div className="space-y-2 mt-3">
+                    {user && (
+                      <div className="flex items-start gap-2 p-3 border border-gray-200 rounded-md bg-gray-50">
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{user.fullName.toUpperCase()} (You)</p>
+                              <p className="text-xs text-gray-500">Creator role</p>
+                            </div>
+                          </div>
+                          <Input
+                            placeholder="Enter your creator role"
+                            value={creatorRole}
+                            onChange={(e) => setCreatorRole(e.target.value.toUpperCase())}
+                            className="text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
                     {assignedPersonnel.map((person: { idNumber: string; fullName: string; task: string; project?: string }) => (
                       <div key={person.idNumber} className="flex items-start gap-2 p-3 border border-gray-200 rounded-md bg-gray-50">
                         <div className="flex-1">
@@ -1172,7 +1206,7 @@ export function ActivityForm({ onSubmitted, onViewRecords, prefillDate }: { onSu
                       </div>
                     ))}
                   </div>
-                )}
+                ) : null}
               </div>
 
               {/* Priority */}

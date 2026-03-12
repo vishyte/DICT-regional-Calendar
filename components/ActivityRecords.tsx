@@ -1453,7 +1453,7 @@ return (
                           
                           {/* Removed Submit button from Activity Records - submissions handled elsewhere */}
                           
-{activity.status === "For Approval" && (user?.role === "admin" || user?.role === "superadmin") && (
+{activity.status === "For Approval" && (["admin", "project_focal", "project_team_lead"].includes(user?.role || "") || user?.role === "superadmin") && (
                             <div className="flex gap-2">
                               <Button
                                 variant="default"

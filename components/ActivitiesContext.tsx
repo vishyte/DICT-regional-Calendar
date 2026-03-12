@@ -24,6 +24,7 @@ export type Activity = {
   changeReason?: string;
   changeDate?: string;
   requestedStatus?: string;
+  creatorRole?: string;
   createdBy?: {
     idNumber: string;
     fullName: string;

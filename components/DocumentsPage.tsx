@@ -37,8 +37,8 @@ export function DocumentsPage({ onlyApprovals }: { onlyApprovals?: boolean }) {
   // - admin sees activities within their project and can approve
   // - staff sees only their own or assigned activities
   const isSuperadmin = user?.role === "superadmin";
-  const isAdmin = user?.role === "admin";
-  const isAdminOrSuperadmin = isSuperadmin || isAdmin;
+  const isProjectAdmin = ["admin", "project_focal", "project_team_lead"].includes(user?.role || "");
+  const isAdminOrSuperadmin = isSuperadmin || isProjectAdmin;
 
   // Get all activities and filter for pending, approval, and completed
   const groupedActivities = useMemo(() => {
@@ -59,7 +59,7 @@ export function DocumentsPage({ onlyApprovals }: { onlyApprovals?: boolean }) {
       if (isSuperadmin) return true;
 
       // Admins should NOT see pending submissions from other staff; they only see their own or those assigned to them.
-      if (isAdmin) {
+      if (isProjectAdmin) {
         if (activity.createdBy?.idNumber === user.idNumber) return true;
         if (activity.assignedPersonnel?.some((ap: any) => ap.idNumber === user.idNumber)) return true;
         return false;
@@ -78,7 +78,7 @@ export function DocumentsPage({ onlyApprovals }: { onlyApprovals?: boolean }) {
       if (!activity.requestedStatus) return false;
 
       if (isSuperadmin) return true;
-      if (isAdmin) return true; // Admins approve across projects
+      if (isProjectAdmin) return true; // Admins approve across projects
 
       // Regular users see only their project's activities (as before)
       return hasSameProject(activity);
@@ -89,7 +89,7 @@ export function DocumentsPage({ onlyApprovals }: { onlyApprovals?: boolean }) {
       if (displayStatus !== "Completed") return false;
 
       if (isSuperadmin) return true;
-      if (isAdmin && hasSameProject(activity)) return true;
+      if (isProjectAdmin && hasSameProject(activity)) return true;
 
       // Staff/normal users see only their own or assigned activities
       if (activity.createdBy?.idNumber === user.idNumber) return true;
@@ -103,7 +103,7 @@ export function DocumentsPage({ onlyApprovals }: { onlyApprovals?: boolean }) {
       forApproval: forApproval.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
       completed: completed.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     };
-  }, [activities, user, isAdmin, isSuperadmin]);
+  }, [activities, user, isProjectAdmin, isSuperadmin]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);

@@ -54,7 +54,7 @@ export function SuperadminDashboard({ onLogout, superadminName = "Administrator"
       const users = response.data?.users || response.data || [];
 
       const totalUsers = users.length;
-      const projectAdmins = users.filter((u: any) => u.role === "admin").length;
+      const projectAdmins = users.filter((u: any) => ["admin", "project_focal", "project_team_lead"].includes(u.role)).length;
 
       setStats({ totalUsers, projectAdmins });
     } catch (error) {
@@ -64,7 +64,7 @@ export function SuperadminDashboard({ onLogout, superadminName = "Administrator"
         if (stored) {
           const localUsers: LocalUser[] = JSON.parse(stored);
           const totalUsers = localUsers.length;
-          const projectAdmins = localUsers.filter((u) => u.role === "admin").length;
+          const projectAdmins = localUsers.filter((u) => ["admin", "project_focal", "project_team_lead"].includes(u.role || "")).length;
           setStats({ totalUsers, projectAdmins });
         }
       } catch (e) {

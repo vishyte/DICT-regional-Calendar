@@ -30,6 +30,7 @@ export interface Activity {
   change_reason?: string;
   change_date?: string;
   created_by_id: number;
+  creator_role?: string;
   priority?: 'Normal' | 'Urgent';
   partner_institution?: string;
   mode?: string;

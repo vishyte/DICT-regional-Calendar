@@ -55,7 +55,7 @@ function AppContent() {
   const [superadminUser, setSuperadminUser] = useState<{username: string} | null>(null);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState<boolean>(false);
 
-  const isAdminOrSuperadmin = user?.role === "admin" || user?.role === "superadmin";
+  const isAdminOrSuperadmin = ["admin", "project_focal", "project_team_lead"].includes(user?.role || "") || user?.role === "superadmin";
 
   // Compute pending activities
   const pendingActivities = React.useMemo(() => {

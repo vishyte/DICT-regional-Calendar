@@ -382,8 +382,10 @@ export function UserProfile() {
                 <div>
                   <p className="font-medium text-blue-900">Account Role</p>
                   <p className="text-sm text-blue-700">
-                    {user?.role === 'admin'
-                      ? 'Project Admin'
+                    {user?.role === 'project_focal' || user?.role === 'admin'
+                      ? 'Project Focal'
+                      : user?.role === 'project_team_lead'
+                      ? 'Project Team Lead'
                       : user?.role === 'superadmin'
                       ? 'Super Administrator'
                       : user?.role === 'provincial_officer'
@@ -396,14 +398,16 @@ export function UserProfile() {
                 variant={
                   user?.role === 'provincial_officer'
                     ? 'royal'
-                    : user?.role === 'admin' || user?.role === 'superadmin'
+                    : user?.role === 'project_focal' || user?.role === 'project_team_lead' || user?.role === 'admin' || user?.role === 'superadmin'
                     ? 'default'
                     : 'staff'
                 }
                 className="text-xs"
               >
-                {user?.role === 'admin'
-                  ? 'Admin'
+                {user?.role === 'project_focal' || user?.role === 'admin'
+                  ? 'Project Focal'
+                  : user?.role === 'project_team_lead'
+                  ? 'Project Team Lead'
                   : user?.role === 'superadmin'
                   ? 'Superadmin'
                   : user?.role === 'provincial_officer'
