@@ -17,7 +17,7 @@ interface SystemUser {
   fullName: string;
   email: string;
   project: string;
-  role: "superadmin" | "admin" | "user";
+  role: "superadmin" | "admin" | "provincial_officer" | "user";
   createdAt: string;
   status: "active" | "inactive";
 }
@@ -31,7 +31,7 @@ interface LocalUser {
   middle_name?: string;
   last_name: string;
   project: string;
-  role?: "superadmin" | "admin" | "user";
+  role?: "superadmin" | "admin" | "provincial_officer" | "user";
 }
 
 function getLocalUsersAsSystemUsers(): SystemUser[] {
@@ -516,8 +516,18 @@ export function UserManagement() {
                 <TableCell className="text-sm">{user.email}</TableCell>
                 <TableCell>{user.project}</TableCell>
                 <TableCell>
-                  <Badge variant={user.role === "superadmin" ? "default" : user.role === "admin" ? "secondary" : "outline"}>
-                    {user.role}
+                  <Badge
+                    variant={
+                      user.role === "superadmin"
+                        ? "default"
+                        : user.role === "admin"
+                        ? "secondary"
+                        : user.role === "provincial_officer"
+                        ? "secondary"
+                        : "outline"
+                    }
+                  >
+                    {user.role === "provincial_officer" ? "Provincial Officer" : user.role}
                   </Badge>
                 </TableCell>
                 <TableCell>

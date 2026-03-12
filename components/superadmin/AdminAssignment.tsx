@@ -20,13 +20,21 @@ import {
   AlertDialogTrigger,
 } from "../ui/alert-dialog";
 
+type ProjectAdminRole = "admin" | "provincial_officer";
+
 interface ProjectAdmin {
   projectName: string;
   adminName: string;
   adminEmail: string;
   assignedDate: string;
   status: "active" | "inactive";
+  role: ProjectAdminRole;
 }
+
+const ROLE_OPTIONS: Array<{ value: ProjectAdminRole; label: string }> = [
+  { value: "admin", label: "Project Admin" },
+  { value: "provincial_officer", label: "Provincial Officer" },
+];
 
 const PROJECTS = [
   "IIDB",
@@ -105,15 +113,16 @@ export function AdminAssignment() {
         }));
         setAdmins(mapped);
 
-        // Build assignments from server users with admin role
+        // Build assignments from server users with admin or provincial officer role
         const adminAssignments = serverUsers
-          .filter((u: any) => u.role === "admin")
+          .filter((u: any) => u.role === "admin" || u.role === "provincial_officer")
           .map((u: any) => ({
             projectName: u.project || "Unassigned",
             adminName: u.fullName || u.username,
             adminEmail: u.email || '',
             assignedDate: u.createdAt ? new Date(u.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            status: "active" as const
+            status: "active" as const,
+            role: u.role || "admin"
           }));
 
         setAssignments(adminAssignments);
@@ -131,33 +140,42 @@ export function AdminAssignment() {
 
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [selectedAdmin, setSelectedAdmin] = useState<string>("");
+  const [selectedRole, setSelectedRole] = useState<ProjectAdminRole>("admin");
 
   const handleAssignAdmin = async () => {
-    if (!selectedProject || !selectedAdmin) {
+    const needsProject = selectedRole === "admin";
+    if ((needsProject && !selectedProject) || !selectedAdmin) {
       toast.error("Please select both project and admin");
       return;
     }
 
-    const admin = admins.find(a => a.id.toString() === selectedAdmin);
+    const admin = admins.find((a) => a.id.toString() === selectedAdmin);
     if (!admin) {
       toast.error("Admin not found");
       return;
     }
 
     try {
-      // Update user role to admin in backend with project assignment
-      await usersAPI.update(parseInt(selectedAdmin), { role: "admin", project: selectedProject });
+      // Update user role in backend; only send project when assigning a Project Admin
+      const updatePayload: any = { role: selectedRole };
+      if (selectedRole === "admin") {
+        updatePayload.project = selectedProject;
+      }
+      await usersAPI.update(parseInt(selectedAdmin), updatePayload);
 
-      const existingAssignment = assignments.find(a => a.projectName === selectedProject);
+      const projectName = selectedRole === "admin" ? selectedProject : "—";
+      const existingAssignment = assignments.find(
+        (a) => a.adminEmail === admin.email && a.role === selectedRole
+      );
       let newAssignments: ProjectAdmin[];
 
       if (existingAssignment) {
-        newAssignments = assignments.map(a =>
-          a.projectName === selectedProject
+        newAssignments = assignments.map((a) =>
+          a.adminEmail === admin.email && a.role === selectedRole
             ? {
                 ...a,
+                projectName,
                 adminName: admin.name,
-                adminEmail: admin.email,
                 assignedDate: new Date().toISOString().split('T')[0],
                 status: "active"
               }
@@ -167,11 +185,12 @@ export function AdminAssignment() {
         newAssignments = [
           ...assignments,
           {
-            projectName: selectedProject,
+            projectName,
             adminName: admin.name,
             adminEmail: admin.email,
             assignedDate: new Date().toISOString().split('T')[0],
-            status: "active"
+            status: "active",
+            role: selectedRole
           }
         ];
       }
@@ -180,15 +199,17 @@ export function AdminAssignment() {
       saveAssignments(newAssignments);
       setSelectedProject("");
       setSelectedAdmin("");
-      toast.success(`Admin ${admin.name} assigned to ${selectedProject}`);
+      toast.success(
+        `${admin.name} assigned as ${selectedRole === "admin" ? "Project Admin" : "Provincial Officer"}`
+      );
     } catch (error) {
       console.error("Failed to assign admin:", error);
       toast.error("Failed to assign admin. Please ensure the user exists and try again.");
     }
   };
 
-  const handleRemoveAssignment = async (projectName: string) => {
-    const assignment = assignments.find(a => a.projectName === projectName);
+  const handleRemoveAssignment = async (adminEmail: string, role: ProjectAdminRole) => {
+    const assignment = assignments.find((a) => a.adminEmail === adminEmail && a.role === role);
     if (!assignment) return;
 
     try {
@@ -198,43 +219,66 @@ export function AdminAssignment() {
         await usersAPI.update(adminUser.id, { role: "user" });
       }
 
-      const newAssignments = assignments.filter(a => a.projectName !== projectName);
+      const newAssignments = assignments.filter(
+        (a) => !(a.adminEmail === adminEmail && a.role === role)
+      );
       setAssignments(newAssignments);
       saveAssignments(newAssignments);
-      toast.success(`Admin ${assignment.adminName} removed from ${projectName}`);
+      toast.success(
+        `Admin ${assignment.adminName} removed from ${assignment.role === "admin" ? assignment.projectName : "Provincial Officer"}`
+      );
     } catch (error) {
       console.error("Failed to remove assignment:", error);
       toast.error("Failed to remove admin assignment. Please try again.");
     }
   };
 
-  const unassignedProjects = PROJECTS.filter(p => !assignments.find(a => a.projectName === p));
+  // Allow re-using projects for different roles (e.g., Project Admin + Provincial Officer)
+  const availableProjects = PROJECTS;
 
   return (
     <div className="space-y-6 p-6">
       <Alert className="bg-blue-50 border-blue-200">
         <AlertCircle className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-800">
-          Assign project administrators to manage specific projects and their activities
+            Assign project administrators or provincial officers to manage specific projects and their activities
         </AlertDescription>
       </Alert>
 
       <Card>
         <CardHeader>
-          <CardTitle>Assign New Admin</CardTitle>
+          <CardTitle>Assign New Admin / Provincial Officer</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {selectedRole === "admin" && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Select Project</label>
+                <Select value={selectedProject} onValueChange={setSelectedProject}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose project..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableProjects.map((project) => (
+                      <SelectItem key={project} value={project}>
+                        {project}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">Select Project</label>
-              <Select value={selectedProject} onValueChange={setSelectedProject}>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Assign As</label>
+              <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as ProjectAdminRole)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose project..." />
+                  <SelectValue placeholder="Select role..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {unassignedProjects.map((project) => (
-                    <SelectItem key={project} value={project}>
-                      {project}
+                  {ROLE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -282,26 +326,32 @@ export function AdminAssignment() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Project</TableHead>
-                  <TableHead>Admin Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Assigned Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                <TableHead>Admin Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Assigned Date</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {assignments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-600">
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-600">
                       No admin assignments yet
                     </TableCell>
                   </TableRow>
                 ) : (
                   assignments.map((assignment) => (
-                    <TableRow key={assignment.projectName}>
+                    <TableRow key={`${assignment.adminEmail}-${assignment.role}`}>
                       <TableCell className="font-medium">{assignment.projectName}</TableCell>
                       <TableCell>{assignment.adminName}</TableCell>
                       <TableCell className="text-sm text-gray-600">{assignment.adminEmail}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="uppercase text-xs">
+                          {assignment.role === "provincial_officer" ? "Provincial Officer" : "Project Admin"}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-sm">{assignment.assignedDate}</TableCell>
                       <TableCell>
                         <Badge variant="default" className="bg-green-600">
@@ -322,16 +372,19 @@ export function AdminAssignment() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Remove Project Admin?</AlertDialogTitle>
+                              <AlertDialogTitle>
+                                Remove {assignment.role === "provincial_officer" ? "Provincial Officer" : "Project Admin"}?
+                              </AlertDialogTitle>
                               <AlertDialogDescription>
-                                Are you sure you want to remove <strong>{assignment.adminName}</strong> from <strong>{assignment.projectName}</strong>? 
+                                Are you sure you want to remove <strong>{assignment.adminName}</strong>
+                                {assignment.role === "provincial_officer" ? " as Provincial Officer" : ` from ${assignment.projectName}`}?
                                 This action cannot be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction 
-                                onClick={() => handleRemoveAssignment(assignment.projectName)}
+                                onClick={() => handleRemoveAssignment(assignment.adminEmail, assignment.role)}
                                 className="bg-red-600 hover:bg-red-700"
                               >
                                 Remove Admin

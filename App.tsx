@@ -359,7 +359,13 @@ function AppContent() {
               )}
               <div className="mt-1">
                 <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
-                  {(user?.role === 'admin' || user?.role === 'superadmin') ? 'Admin' : 'Staff'}
+                  {user?.role === 'superadmin'
+                    ? 'Superadmin'
+                    : user?.role === 'admin'
+                    ? 'Admin'
+                    : user?.role === 'provincial_officer'
+                    ? 'Provincial Officer'
+                    : 'Staff'}
                 </span>
               </div>
             </div>
