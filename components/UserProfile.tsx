@@ -36,7 +36,7 @@ export function UserProfile() {
         lastName: user.lastName || "",
         email: user.email || "",
         username: user.idNumber || "",
-        project: user.project || "",
+        project: user.role === 'provincial_officer' ? "" : user.project || "",
         officeAssignment: user.officeAssignment || ""
       });
     }
@@ -77,12 +77,18 @@ export function UserProfile() {
     
     try {
       // Prepare the data to send to the backend
-      const updateData = {
+      const updateData: any = {
         fullName: `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim(),
-        project: formData.project,
         email: formData.email,
         officeAssignment: formData.officeAssignment
       };
+
+      // Provincial Officers do not have a project/program assignment
+      if (user.role !== 'provincial_officer') {
+        updateData.project = formData.project;
+      } else {
+        updateData.project = "";
+      }
 
       // Call the backend API to update the user profile
       const response = await usersAPI.update(user.id, updateData);
@@ -281,30 +287,32 @@ export function UserProfile() {
             </div>
 
             {/* Project */}
-            <div className="space-y-2">
-              <Label htmlFor="project" className="text-gray-700 font-medium">
-                Project/Program
-              </Label>
-              {!isEditing ? (
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <User className="h-4 w-4 text-gray-400" />
-                  <p className="text-gray-900">{formData.project}</p>
-                </div>
-              ) : (
-                <select
-                  id="project"
-                  name="project"
-                  value={formData.project}
-                  onChange={handleInputChange}
-                  className="w-full border-gray-300 rounded"
-                >
-                  <option value="">Select project</option>
-                  {projects.map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              )}
-            </div>
+            {user?.role !== 'provincial_officer' && (
+              <div className="space-y-2">
+                <Label htmlFor="project" className="text-gray-700 font-medium">
+                  Project/Program
+                </Label>
+                {!isEditing ? (
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <User className="h-4 w-4 text-gray-400" />
+                    <p className="text-gray-900">{formData.project}</p>
+                  </div>
+                ) : (
+                  <select
+                    id="project"
+                    name="project"
+                    value={formData.project}
+                    onChange={handleInputChange}
+                    className="w-full border-gray-300 rounded"
+                  >
+                    <option value="">Select project</option>
+                    {projects.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
 
             {/* Office Assignment */}
             <div className="space-y-2">
@@ -374,12 +382,33 @@ export function UserProfile() {
                 <div>
                   <p className="font-medium text-blue-900">Account Role</p>
                   <p className="text-sm text-blue-700">
-                    {user?.role === 'admin' ? 'Project Admin' : user?.role === 'superadmin' ? 'Super Administrator' : 'Staff Member'}
+                    {user?.role === 'admin'
+                      ? 'Project Admin'
+                      : user?.role === 'superadmin'
+                      ? 'Super Administrator'
+                      : user?.role === 'provincial_officer'
+                      ? 'Provincial Officer'
+                      : 'Staff Member'}
                   </p>
                 </div>
               </div>
-              <Badge className={user?.role === 'admin' ? 'bg-purple-600' : user?.role === 'superadmin' ? 'bg-red-600' : 'bg-blue-600'}>
-                {user?.role === 'admin' ? 'Admin' : user?.role === 'superadmin' ? 'Superadmin' : 'Staff'}
+              <Badge
+                variant={
+                  user?.role === 'provincial_officer'
+                    ? 'royal'
+                    : user?.role === 'admin' || user?.role === 'superadmin'
+                    ? 'default'
+                    : 'staff'
+                }
+                className="text-xs"
+              >
+                {user?.role === 'admin'
+                  ? 'Admin'
+                  : user?.role === 'superadmin'
+                  ? 'Superadmin'
+                  : user?.role === 'provincial_officer'
+                  ? 'Provincial Officer'
+                  : 'Staff'}
               </Badge>
             </div>
 

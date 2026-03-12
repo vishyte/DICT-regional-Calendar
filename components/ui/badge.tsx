@@ -17,6 +17,10 @@ const badgeVariants = cva(
           "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
           "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+        staff:
+          "border-transparent bg-blue-600 text-white shadow-md ring-1 ring-blue-200/70 animate-staff-badge",
+        royal:
+          "border-amber-300 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-black shadow-lg ring-1 ring-amber-200/70 animate-royal-badge",
       },
     },
     defaultVariants: {

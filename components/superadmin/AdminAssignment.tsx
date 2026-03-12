@@ -156,10 +156,12 @@ export function AdminAssignment() {
     }
 
     try {
-      // Update user role in backend; only send project when assigning a Project Admin
+      // Update user role in backend; clear project when assigning Provincial Officer
       const updatePayload: any = { role: selectedRole };
       if (selectedRole === "admin") {
         updatePayload.project = selectedProject;
+      } else {
+        updatePayload.project = "";
       }
       await usersAPI.update(parseInt(selectedAdmin), updatePayload);
 

@@ -504,6 +504,12 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
     if (role) {
       updates.push('role = ?');
       params.push(role);
+
+      // When a user is made a Provincial Officer, clear the project assignment
+      if (role === 'provincial_officer') {
+        updates.push('project = ?');
+        params.push('');
+      }
     }
 
     if (updates.length === 0) {

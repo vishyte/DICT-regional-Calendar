@@ -99,24 +99,50 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('local_activities', JSON.stringify(activitiesToSave));
   };
 
+  const formatDateKey = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getDateRangeKeys = (start: string, end?: string) => {
+    const startDate = new Date(start);
+    const endDate = end ? new Date(end) : startDate;
+    const keys: string[] = [];
+
+    // Ensure we handle end dates earlier than start (fallback)
+    const finalEnd = isNaN(endDate.getTime()) || endDate < startDate ? startDate : endDate;
+
+    for (let dt = new Date(startDate); dt <= finalEnd; dt.setDate(dt.getDate() + 1)) {
+      keys.push(formatDateKey(dt));
+    }
+
+    return keys;
+  };
+
+  const addActivityToGroup = (grouped: DayActivities, activity: Activity) => {
+    const normalized = {
+      ...activity,
+      priority: normalizePriority(activity.priority as any),
+    };
+
+    const dateKeys = getDateRangeKeys(normalized.date, normalized.endDate);
+    dateKeys.forEach((key) => {
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(normalized);
+    });
+  };
+
   const refreshActivities = async () => {
     setLoading(true);
     try {
       const response = await activitiesAPI.getAll();
       const activitiesList: Activity[] = response.data;
 
-      // Normalize legacy priorities and group by date
+      // Normalize legacy priorities and group by date (including multi-day events)
       const grouped: DayActivities = {};
-      activitiesList.forEach(activity => {
-        const normalized = {
-          ...activity,
-          priority: normalizePriority(activity.priority as any),
-        };
-        if (!grouped[normalized.date]) {
-          grouped[normalized.date] = [];
-        }
-        grouped[normalized.date].push(normalized);
-      });
+      activitiesList.forEach((activity) => addActivityToGroup(grouped, activity));
 
       setActivities(grouped);
     } catch (error) {
@@ -124,16 +150,7 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
       // Fall back to local activities
       const localActivities = getLocalActivities();
       const grouped: DayActivities = {};
-      localActivities.forEach(activity => {
-        const normalized = {
-          ...activity,
-          priority: normalizePriority(activity.priority as any),
-        };
-        if (!grouped[normalized.date]) {
-          grouped[normalized.date] = [];
-        }
-        grouped[normalized.date].push(normalized);
-      });
+      localActivities.forEach((activity) => addActivityToGroup(grouped, activity));
       setActivities(grouped);
     } finally {
       setLoading(false);

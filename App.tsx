@@ -353,12 +353,23 @@ function AppContent() {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-900 truncate">{(user?.fullName || `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim()).toUpperCase()}</p>
-              <p className="text-xs text-gray-700 truncate mt-0.5">{(user?.project || 'eGOV').toUpperCase()}</p>
+              {user?.role !== 'provincial_officer' && (
+                <p className="text-xs text-gray-700 truncate mt-0.5">{(user?.project || 'eGOV').toUpperCase()}</p>
+              )}
               {user?.officeAssignment && (
                 <p className="text-xs text-gray-700 truncate mt-0.5">{user.officeAssignment}</p>
               )}
               <div className="mt-1">
-                <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                <Badge
+                  variant={
+                    user?.role === 'provincial_officer'
+                      ? 'royal'
+                      : user?.role === 'admin' || user?.role === 'superadmin'
+                      ? 'default'
+                      : 'staff'
+                  }
+                  className="text-xs"
+                >
                   {user?.role === 'superadmin'
                     ? 'Superadmin'
                     : user?.role === 'admin'
@@ -366,7 +377,7 @@ function AppContent() {
                     : user?.role === 'provincial_officer'
                     ? 'Provincial Officer'
                     : 'Staff'}
-                </span>
+                </Badge>
               </div>
             </div>
           </div>
