@@ -116,6 +116,9 @@ export function ActivitiesProvider({ children }: { children: ReactNode }) {
     const finalEnd = isNaN(endDate.getTime()) || endDate < startDate ? startDate : endDate;
 
     for (let dt = new Date(startDate); dt <= finalEnd; dt.setDate(dt.getDate() + 1)) {
+      const dayOfWeek = dt.getDay();
+      // Exclude weekends: Sunday (0) and Saturday (6)
+      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
       keys.push(formatDateKey(dt));
     }
 

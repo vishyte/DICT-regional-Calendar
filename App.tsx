@@ -364,7 +364,9 @@ function AppContent() {
                   variant={
                     user?.role === 'provincial_officer'
                       ? 'royal'
-                      : user?.role === 'admin' || user?.role === 'superadmin'
+                      : user?.role === 'superadmin'
+                      ? 'default'
+                      : user?.role === 'admin' || user?.role === 'project_focal' || user?.role === 'project_team_lead'
                       ? 'default'
                       : 'staff'
                   }
@@ -374,6 +376,10 @@ function AppContent() {
                     ? 'Superadmin'
                     : user?.role === 'admin'
                     ? 'Admin'
+                    : user?.role === 'project_focal'
+                    ? 'Project Focal'
+                    : user?.role === 'project_team_lead'
+                    ? 'Project Team Lead'
                     : user?.role === 'provincial_officer'
                     ? 'Provincial Officer'
                     : 'Staff'}

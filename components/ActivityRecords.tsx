@@ -542,10 +542,11 @@ export function ActivityRecords() {
   ]);
 
   const mappedFromCalendar = useMemo(() => {
-    const out: Activity[] = [];
+    const map = new Map<string, Activity>();
+
     for (const [dateKey, items] of Object.entries(calendarActivities)) {
       for (const a of items) {
-        out.push({
+        const activity: Activity = {
           id: `cal-${a.id}`,
           name: a.name,
           project: a.project,
@@ -568,10 +569,16 @@ export function ActivityRecords() {
           changeReason: a.changeReason,
           changeDate: a.changeDate,
           createdBy: a.createdBy,
-        });
+        };
+
+        // Avoid duplicate records for events that span multiple days
+        if (!map.has(activity.id)) {
+          map.set(activity.id, activity);
+        }
       }
     }
-    return out;
+
+    return Array.from(map.values());
   }, [calendarActivities, setRefreshCounter]);
 
   const combinedActivities = useMemo(() => {
@@ -608,8 +615,11 @@ export function ActivityRecords() {
     const matchesSearch = activity.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          activity.barangay.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          activity.partnerInstitution.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesProject = selectedProject === "all" || activity.project === selectedProject;
+
     const normalize = (s: string) => (s || "").toLowerCase().trim();
+    const projectValue = normalize(activity.project);
+    const matchesProject = selectedProject === "all" || projectValue.split(',').map(p => p.trim()).includes(normalize(selectedProject));
+
     const matchesProvince = selectedProvince === "all" || normalize(activity.province).includes(normalize(selectedProvince));
     const matchesStatus = selectedStatus === "all" || (selectedStatus === "Pending" ? activity.status === "Submission of Documents" : activity.status === selectedStatus);
     const activityMonth = new Date(activity.date).getMonth().toString();

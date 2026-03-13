@@ -98,7 +98,7 @@ function saveAssignments(assignments: ProjectAdmin[]): void {
 
 export function AdminAssignment() {
   const [assignments, setAssignments] = useState<ProjectAdmin[]>([]);
-  const [admins, setAdmins] = useState<Array<{ id: number; name: string; email: string }>>([]);
+  const [admins, setAdmins] = useState<Array<{ id: number; name: string; email: string; role?: string }>>([]);
 
   // Load assignments and registered users on mount
   useEffect(() => {
@@ -110,7 +110,8 @@ export function AdminAssignment() {
         const mapped = serverUsers.map((u: any) => ({
           id: u.id,
           name: u.fullName || u.username,
-          email: u.email || ''
+          email: u.email || '',
+          role: u.role,
         }));
         setAdmins(mapped);
 
@@ -265,7 +266,7 @@ export function AdminAssignment() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {selectedRole === "admin" && (
+            {(["admin", "project_focal", "project_team_lead"] as ProjectAdminRole[]).includes(selectedRole) && (
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Select Project</label>
                 <Select value={selectedProject} onValueChange={setSelectedProject}>
